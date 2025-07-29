@@ -1,4 +1,4 @@
-# 📲 Back Button Anywhere – Floating Back Button for Android
+# 📲 Floating Back Button for Android
 
 A lightweight Android service that provides a **floating back button** accessible system-wide. Designed to assist users with easier navigation, especially for devices with large screens or broken hardware buttons.
 
