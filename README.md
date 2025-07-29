@@ -18,26 +18,26 @@ A lightweight Android service that provides a **floating back button** accessibl
 
 ## 🗂️ Project Structure
 
-| File/Path                      | Description                                      |
+| File/Path                     | Description                                      |
 |-------------------------------|--------------------------------------------------|
-| `AndroidManifest.xml`         | Declares permissions and services               |
+| `AndroidManifest.xml`         | Declares permissions and services                |
 | `BackButtonService.java`      | Main logic for floating button via accessibility |
-| `CheckPermissionService.java` | Verifies overlay/accessibility permissions      |
-| `nu.back.button.*`            | Main app package                                |
-| `com.facebook.ads.*`, `Glide` | Third-party libraries (non-essential)           |
+| `CheckPermissionService.java` | Verifies overlay/accessibility permissions       |
+| `nu.back.button.*`            | Main app package                                 |
+| `com.facebook.ads.*`, `Glide` | Third-party libraries (non-essential)            |
 
 ---
 
 ## 🛡️ Required Permissions
 
-| Permission                    | Purpose                                          |
-|------------------------------|--------------------------------------------------|
-| `SYSTEM_ALERT_WINDOW`        | Overlay support                                 |
-| `BIND_ACCESSIBILITY_SERVICE`| Enables simulating global BACK action           |
-| `VIBRATE`                    | Haptic feedback                                 |
-| `QUERY_ALL_PACKAGES`         | [⚠️ Risky] Scans all installed apps              |
-| `CALL_PHONE`, `WRITE_SETTINGS`| [⚠️ Risky] Likely unnecessary                   |
-| Others (e.g., `INTERNET`)     | Possibly ad or legacy-related                   |
+| Permission                     | Purpose                               |
+|--------------------------------|---------------------------------------|
+| `SYSTEM_ALERT_WINDOW`          | Overlay support                       |
+| `BIND_ACCESSIBILITY_SERVICE`   | Enables simulating global BACK action |
+| `VIBRATE`                      | Haptic feedback                       |
+| `QUERY_ALL_PACKAGES`           | [⚠️ Risky] Scans all installed apps   |
+| `CALL_PHONE`, `WRITE_SETTINGS` | [⚠️ Risky] Likely unnecessary         |
+| Others (e.g., `INTERNET`)      | Possibly ad or legacy-related         |
 
 ---
 
