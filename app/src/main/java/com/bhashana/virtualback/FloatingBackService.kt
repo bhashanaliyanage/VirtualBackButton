@@ -2,9 +2,12 @@ package com.bhashana.virtualback
 
 import android.Manifest
 import android.accessibilityservice.AccessibilityService
+import android.graphics.PixelFormat
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
+import android.util.Log
+import android.view.Gravity
 import android.view.MotionEvent
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
@@ -32,6 +35,19 @@ class FloatingBackService : AccessibilityService() {
                 true
             }
         }
+
+        val params = WindowManager.LayoutParams(
+            120, 120,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            else
+                WindowManager.LayoutParams.TYPE_PHONE,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            PixelFormat.TRANSLUCENT
+        )
+
+        params.gravity = Gravity.END or Gravity.CENTER_VERTICAL
+        windowManager.addView(floatingButton, params)
     }
 
     @RequiresPermission(Manifest.permission.VIBRATE)
@@ -45,10 +61,10 @@ class FloatingBackService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        TODO("Not yet implemented")
+        Log.d("FloatingBackService", "Event received: ${event?.eventType}")
     }
 
     override fun onInterrupt() {
-        TODO("Not yet implemented")
+        Log.d("FloatingBackService", "Service interrupted.")
     }
 }

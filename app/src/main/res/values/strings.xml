@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">#VirtualBack</string>
+    <string name="accessibility_service_description">Floating Back Button Service – Tap to go back from any screen.</string>
 </resources>
