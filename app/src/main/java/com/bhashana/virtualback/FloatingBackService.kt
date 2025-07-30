@@ -2,8 +2,14 @@ package com.bhashana.virtualback
 
 import android.Manifest
 import android.accessibilityservice.AccessibilityService
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.PixelFormat
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.util.Log
@@ -22,14 +28,31 @@ class FloatingBackService : AccessibilityService() {
     private var initialY = 0
     private var initialTouchX = 0f
     private var initialTouchY = 0f
+    private var isKeyboardVisible = false
+    private val keyboardCheckHandler = Handler(Looper.getMainLooper())
+    private lateinit var layoutParams: WindowManager.LayoutParams
+    private val keyboardBroadcastReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val keyboardVisible = intent?.getBooleanExtra("keyboardVisible", false) ?: false
+            layoutParams.y = if (keyboardVisible) 200 else 500
+            windowManager.updateViewLayout(floatingButton, layoutParams)
+        }
+    }
 
     override fun onServiceConnected() {
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         showFloatingButton()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(
+                keyboardBroadcastReceiver,
+                IntentFilter("FLOATING_BUTTON_KEYBOARD_VISIBILITY"),
+                RECEIVER_NOT_EXPORTED
+            )
+        }
     }
 
     private fun showFloatingButton() {
-        val params = WindowManager.LayoutParams(
+        val layoutParams = WindowManager.LayoutParams(
             120, 120,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -48,17 +71,17 @@ class FloatingBackService : AccessibilityService() {
             setOnTouchListener { _, event ->
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
-                        initialX = params.x
-                        initialY = params.y
+                        initialX = layoutParams.x
+                        initialY = layoutParams.y
                         initialTouchX = event.rawX
                         initialTouchY = event.rawY
                         true
                     }
 
                     MotionEvent.ACTION_MOVE -> {
-                        params.x = initialX + (event.rawX - initialTouchX).toInt()
-                        params.y = initialY + (event.rawY - initialTouchY).toInt()
-                        windowManager.updateViewLayout(floatingButton, params)
+                        layoutParams.x = initialX + (event.rawX - initialTouchX).toInt()
+                        layoutParams.y = initialY + (event.rawY - initialTouchY).toInt()
+                        windowManager.updateViewLayout(floatingButton, layoutParams)
                         true
                     }
 
@@ -77,16 +100,14 @@ class FloatingBackService : AccessibilityService() {
             }
         }
 
-        windowManager.addView(floatingButton, params)
+        windowManager.addView(floatingButton, layoutParams)
     }
 
     @RequiresPermission(Manifest.permission.VIBRATE)
     private fun vibrate() {
         val v = getSystemService(VIBRATOR_SERVICE) as Vibrator
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            v.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
-        } else {
-            v.vibrate(50)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            v.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.EFFECT_TICK))
         }
     }
 
@@ -96,5 +117,10 @@ class FloatingBackService : AccessibilityService() {
 
     override fun onInterrupt() {
         Log.d("FloatingBackService", "Service interrupted.")
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        unregisterReceiver(keyboardBroadcastReceiver)
     }
 }

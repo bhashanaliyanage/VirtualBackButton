@@ -1,8 +1,10 @@
 package com.bhashana.virtualback
 
 import android.content.Intent
+import android.graphics.Rect
 import android.os.Bundle
 import android.provider.Settings
+import android.view.View
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -25,6 +27,25 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val rootView = findViewById<View>(android.R.id.content)
+        rootView.viewTreeObserver.addOnGlobalLayoutListener {
+            val r = Rect()
+            rootView.getWindowVisibleDisplayFrame(r)
+            val screenHeight = rootView.rootView.height
+            val keypadHeight = screenHeight - r.bottom
+
+            val isKeyboardVisible = keypadHeight > screenHeight * 0.15
+            val intent = Intent("FLOATING_BUTTON_KEYBOARD_VISIBILITY")
+            intent.putExtra("keyboardVisible", isKeyboardVisible)
+            sendBroadcast(intent)
+        }
+
+        KeyboardVisibilityDetector(this) { isKeyboardVisible ->
+            val intent = Intent("FLOATING_BUTTON_KEYBOARD_VISIBILITY")
+            intent.putExtra("keyboardVisible", isKeyboardVisible)
+            sendBroadcast(intent)
+        }.start()
 
         if (!Settings.canDrawOverlays(this)) {
             val intent = Intent(
