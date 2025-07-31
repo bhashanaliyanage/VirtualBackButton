@@ -12,13 +12,17 @@ import android.graphics.PixelFormat
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
+import android.provider.Settings
 import android.util.Log
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.ImageView
+import android.widget.Toast
 import androidx.annotation.RequiresPermission
+import androidx.core.net.toUri
 
 class FloatingBackService : AccessibilityService() {
 
@@ -28,11 +32,15 @@ class FloatingBackService : AccessibilityService() {
     private var initialY = 0
     private var initialTouchX = 0f
     private var initialTouchY = 0f
+    private var originalY: Int? = null
     private lateinit var layoutParams: WindowManager.LayoutParams
     private val keyboardBroadcastReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (!::layoutParams.isInitialized || !::floatingButton.isInitialized) {
-                Log.w("FloatingBackService", "Broadcast received before layoutParams/floatingButton initialized")
+                Log.w(
+                    "FloatingBackService",
+                    "Broadcast received before layoutParams/floatingButton initialized"
+                )
                 return
             } else {
                 Log.w("FloatingBackService", "Broadcast received!")
@@ -59,7 +67,24 @@ class FloatingBackService : AccessibilityService() {
         Log.d("FloatingBackService", "onServiceConnected()")
 
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-        showFloatingButton()
+
+        if (Settings.canDrawOverlays(this)) {
+            showFloatingButton()
+        } else {
+            Log.e("FloatingBackService", "SYSTEM_ALERT_WINDOW not granted!")
+            Toast.makeText(
+                this,
+                "Overlay permission not granted. Enable it in settings.",
+                Toast.LENGTH_LONG
+            ).show()
+            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
+                data = "package:$packageName".toUri()
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(intent)
+            return // ✅ exit early to avoid crash
+        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(
                 keyboardBroadcastReceiver,
@@ -68,13 +93,8 @@ class FloatingBackService : AccessibilityService() {
             )
             Log.d("FloatingBackService", "onServiceConnected() called, registering receiver.")
         }
-
-        /*val testIntent = Intent("FLOATING_BUTTON_KEYBOARD_VISIBILITY")
-        testIntent.setPackage(packageName) // 👈 this tells Android to send to your app only
-        testIntent.putExtra("keyboardVisible", false)
-        testIntent.putExtra("keyboardHeight", 0)
-        sendBroadcast(testIntent)*/
     }
+
 
     @SuppressLint("ClickableViewAccessibility")
     private fun showFloatingButton() {
@@ -141,7 +161,86 @@ class FloatingBackService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        Log.v("FloatingBackService", "Event received: ${event?.eventType}")
+        Log.d("FloatingBackService", "Dummy")
+        if (event == null) return
+
+        when (event.eventType) {
+            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
+                detectKeyboardLikeEvent()
+            }
+        }
+    }
+
+    private fun detectKeyboardLikeEvent() {
+        val rootNode = rootInActiveWindow ?: return
+
+        // Look for input fields in the window
+        val hasInputField = hasEditableTextField(rootNode)
+        Log.d("FloatingBackService", "Editable field focused: $hasInputField")
+
+        val screenHeight = getScreenHeight()
+        val fakeKeyboardHeight = (screenHeight * 0.4).toInt()
+        val keyboardTopY = screenHeight - fakeKeyboardHeight
+        val buttonBottomY = layoutParams.y + floatingButton.height
+
+        val isOverlappingKeyboard = buttonBottomY >= keyboardTopY
+
+        if (hasInputField && isOverlappingKeyboard) {
+            adjustFloatingButton(visible = true, height = fakeKeyboardHeight)
+        } else if (!hasInputField && originalY != null) {
+            adjustFloatingButton(visible = false, height = 0)
+        }
+    }
+
+    private fun adjustFloatingButton(visible: Boolean, height: Int) {
+        if (!::layoutParams.isInitialized || !::floatingButton.isInitialized) return
+
+        val displayMetrics = Resources.getSystem().displayMetrics
+        val screenHeight = displayMetrics.heightPixels
+        val floatingButtonHeight = floatingButton.height
+
+        val newY = if (visible) {
+            // Save the original position before moving up
+            if (originalY == null) {
+                originalY = layoutParams.y
+                Log.d("FloatingBackService", "Saving original Y: $originalY")
+            }
+
+            // Move ABOVE the keyboard
+            (screenHeight - height) - floatingButtonHeight - 50
+        } else {
+            // Move back to original position if known
+            val restoreY = originalY ?: (screenHeight / 2)
+            Log.d("FloatingBackService", "Restoring original Y: $restoreY")
+            originalY = null // clear it
+            restoreY
+        }
+
+        layoutParams.y = newY
+        windowManager.updateViewLayout(floatingButton, layoutParams)
+        Log.d("FloatingBackService", "Floating button adjusted. Visible: $visible, Y: $newY")
+    }
+
+    private fun getScreenHeight(): Int {
+        val displayMetrics = Resources.getSystem().displayMetrics
+        val heightPixels = displayMetrics.heightPixels
+        return heightPixels
+    }
+
+    private fun hasEditableTextField(node: AccessibilityNodeInfo?): Boolean {
+        if (node == null) return false
+
+        if (node.className?.contains("EditText") == true ||
+            node.isFocused && node.isEditable
+        ) {
+            return true
+        }
+
+        for (i in 0 until node.childCount) {
+            if (hasEditableTextField(node.getChild(i))) return true
+        }
+        return false
     }
 
     override fun onInterrupt() {
