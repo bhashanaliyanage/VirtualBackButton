@@ -3,7 +3,6 @@ package com.bhashana.virtualback
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -27,9 +26,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.core.content.PermissionChecker.PERMISSION_GRANTED
-import com.bhashana.virtualback.ui.theme.VirtualBackTheme
 import androidx.core.net.toUri
+import com.bhashana.virtualback.ui.theme.VirtualBackTheme
 
 class MainActivity : ComponentActivity() {
 

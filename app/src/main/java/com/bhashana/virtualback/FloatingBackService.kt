@@ -98,7 +98,7 @@ class FloatingBackService : AccessibilityService() {
     }
 
     private fun makeDraggable(view: View, params: WindowManager.LayoutParams) {
-        var lastX = 0f;
+        var lastX = 0f
         var lastY = 0f
         view.setOnTouchListener { v, e ->
             when (e.actionMasked) {
@@ -141,15 +141,6 @@ class FloatingBackService : AccessibilityService() {
     override fun onUnbind(intent: Intent?): Boolean {
         removeFloatingMenu()
         return super.onUnbind(intent)
-    }
-
-    private fun OverlayService.sendGlobalActionImplicit(a: Int) {
-        val i =
-            Intent("ACCESSIBILITY_GLOBAL_ACTION")
-                .setPackage(packageName)
-                .putExtra("action", a)
-                .addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
-        applicationContext.sendBroadcast(i)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
