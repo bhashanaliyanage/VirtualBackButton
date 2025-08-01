@@ -9,7 +9,7 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.bhashana.virtualback"
+        applicationId = "com.bhashana.virtualnotif"
         minSdk = 24
         targetSdk = 36
         versionCode = 1

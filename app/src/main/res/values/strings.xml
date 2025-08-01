@@ -1,4 +1,6 @@
 <resources>
-    <string name="app_name">#VirtualBack</string>
-    <string name="accessibility_service_description">Floating Back Button Service – Tap to go back from any screen.</string>
+    <string name="app_name">#VirtualNotif</string>
+    <string name="as_notification_label">Notification Panel</string>
+    <string name="as_back_label">Back Button</string>
+    <string name="as_notification_description">Floating Notification Button Service – Tap to open notification panel.</string>
 </resources>
