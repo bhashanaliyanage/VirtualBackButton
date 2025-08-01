@@ -1,4 +1,4 @@
-package com.bhashana.virtualback.ui.theme
+package com.bhashana.virtualnotif.ui.theme
 
 import androidx.compose.ui.graphics.Color
 

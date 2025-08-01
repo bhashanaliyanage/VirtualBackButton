@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.bhashana.virtualback"
+    namespace = "com.bhashana.virtualnotif"
     compileSdk = 36
 
     defaultConfig {

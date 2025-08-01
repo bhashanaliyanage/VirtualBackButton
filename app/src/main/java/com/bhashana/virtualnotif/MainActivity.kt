@@ -1,4 +1,4 @@
-package com.bhashana.virtualback
+package com.bhashana.virtualnotif
 
 import android.content.Intent
 import android.os.Bundle
@@ -22,7 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.bhashana.virtualback.ui.theme.VirtualBackTheme
+import com.bhashana.virtualnotif.ui.theme.VirtualBackTheme
 
 class MainActivity : ComponentActivity() {
 

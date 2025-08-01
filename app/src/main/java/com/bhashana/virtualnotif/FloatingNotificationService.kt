@@ -1,4 +1,4 @@
-package com.bhashana.virtualback
+package com.bhashana.virtualnotif
 
 import android.Manifest
 import android.accessibilityservice.AccessibilityService
