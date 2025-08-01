@@ -1,8 +1,11 @@
 package com.bhashana.virtualback
 
 import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -23,6 +26,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.bhashana.virtualback.ui.theme.VirtualBackTheme
+import androidx.core.net.toUri
 
 class MainActivity : ComponentActivity() {
 
@@ -30,35 +34,56 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         enableEdgeToEdge()
-        setContent {
-            VirtualBackTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(innerPadding),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Greeting()
+setContent {
+    VirtualBackTheme {
+        Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Greeting()
 
-                            Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                            val context = LocalContext.current
-                            Button(onClick = {
-                                val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                                context.startActivity(intent)
-                            }) {
-                                Text("Open Accessibility Settings")
-                            }
+                    val context = LocalContext.current
+
+                    Button(onClick = {
+                        try {
+                            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "Cannot open accessibility settings", Toast.LENGTH_SHORT).show()
                         }
+                    }) {
+                        Text("Open Accessibility Settings")
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Button(onClick = {
+                        if (!Settings.canDrawOverlays(context)) {
+                            val intent = Intent(
+                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                "package:${context.packageName}".toUri()
+                            )
+                            context.startActivity(intent)
+                        } else {
+                            Toast.makeText(context, "Overlay permission already granted", Toast.LENGTH_SHORT).show()
+                        }
+                    }) {
+                        Text("Grant Overlay Permission")
                     }
                 }
             }
         }
+    }
+}
     }
 
     override fun onResume() {
@@ -71,9 +96,10 @@ class MainActivity : ComponentActivity() {
 fun Greeting(modifier: Modifier = Modifier) {
     Text(
         text = """
-            |1. Enable accessibility,
-            |2. Enable accessibility button,
-            |3. Enjoy! Nothing to do here.
+            |1. Enable Accessibility
+            |2. Enable Accessibility Button
+            |3. Grant Overlay Permission
+            |4. Enjoy! Nothing else to do here.
         """.trimMargin(),
         modifier = modifier
     )
