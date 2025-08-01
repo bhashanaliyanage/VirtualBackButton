@@ -25,7 +25,8 @@
             </intent-filter>
         </activity>
         <service
-            android:name=".FloatingBackService"
+            android:name=".FloatingMenuService"
+            android:label="@string/as_menu_label"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
             android:exported="true">
             <intent-filter>

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/menuItemRoot"
+    android:layout_width="64dp"
+    android:layout_height="64dp"
+    android:layout_margin="8dp"
+    android:clickable="true"
+    android:focusable="true"
+    android:foreground="?attr/selectableItemBackgroundBorderless"
+    app:cardCornerRadius="64dp"
+    app:cardElevation="6dp"
+    app:cardUseCompatPadding="false"
+    app:strokeWidth="0dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="6dp">
+
+        <ImageView
+            android:id="@+id/icon"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:contentDescription="@null"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ic_launcher_foreground"
+            app:tint="?attr/colorOnSurface" />
+
+        <TextView
+            android:id="@+id/label"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Label"
+            android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
+            android:textColor="?attr/colorOnSurface" />
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

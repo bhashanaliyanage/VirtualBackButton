@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.bhashana.virtualback"
+    namespace = "com.bhashana.virtualmenu"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.bhashana.virtualback"
+        applicationId = "com.bhashana.virtualmenu"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
@@ -43,12 +43,18 @@ dependencies {
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.service)
+    implementation(libs.androidx.lifecycle.viewmodel.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.savedstate)
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation(libs.androidx.savedstate)
+    implementation(libs.androidx.savedstate.ktx)
+    implementation(libs.material)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

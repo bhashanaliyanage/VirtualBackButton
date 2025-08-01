@@ -1,4 +1,10 @@
 <resources>
-    <string name="app_name">#VirtualBack</string>
-    <string name="accessibility_service_description">Floating Back Button Service – Tap to go back from any screen.</string>
+    <string name="app_name">#VirtualMenu</string>
+    <string name="accessibility_service_description">Floating Accessibility Menu Service</string>
+    <string name="as_menu_label">Open Floating Menu</string>
+    <string name="back">Go Back</string>
+    <string name="home">Go Home</string>
+    <string name="recents">Open Recents</string>
+    <string name="floating_menu_title">Interaction Menu</string>
+    <string name="floating_menu_subtitle">Interaction Menu Subtitle</string>
 </resources>

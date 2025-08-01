@@ -5,12 +5,24 @@
     android:viewportWidth="24"
     android:viewportHeight="24">
     <group
-        android:scaleX="0.75"
-        android:scaleY="0.75"
-        android:translateX="3"
-        android:translateY="3">
+        android:scaleX="0.50"
+        android:scaleY="0.50"
+        android:translateX="6"
+        android:translateY="6">
+
+        <!-- Top bar -->
         <path
             android:fillColor="#FFFFFF"
-            android:pathData="M15.5,5.5c0.4,0.4 0.4,1 0,1.4L10.4,12l5.1,5.1c0.4,0.4 0.4,1 0,1.4 -0.4,0.4 -1,0.4 -1.4,0L8.3,12.7c-0.4,-0.4 -0.4,-1 0,-1.4l5.8,-5.8c0.4,-0.4 1,-0.4 1.4,0z"/>
+            android:pathData="M4,6h16v2H4z"/>
+
+        <!-- Middle bar -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M4,11h16v2H4z"/>
+
+        <!-- Bottom bar -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M4,16h16v2H4z"/>
     </group>
 </vector>
