@@ -3,7 +3,10 @@ package com.bhashana.virtualback
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
+import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.PixelFormat
@@ -22,11 +25,19 @@ class OverlayService : Service() {
 
     private lateinit var windowManager: WindowManager
     private lateinit var overlayView: View
+    private lateinit var app: Context
 
     override fun onCreate() {
         super.onCreate()
 
+        app = applicationContext
+
         createNotificationChannel()
+
+        val intent = Intent("ACCESSIBILITY_GLOBAL_ACTION")
+        intent.putExtra("action", android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS)
+        app.sendBroadcast(intent)
+
         startForeground(1, buildNotification())
 
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
@@ -78,7 +89,9 @@ class OverlayService : Service() {
                 if (action > 0) {
                     val intent = Intent("ACCESSIBILITY_GLOBAL_ACTION")
                     intent.putExtra("action", action)
-                    sendBroadcast(intent)
+                    app.sendBroadcast(intent)
+                    Log.d("OverlayService", "Sending from context: ${this.javaClass.simpleName}")
+                    Log.d("OverlayService", "Sent broadcast: $label -> $action")
                 }
             }
         }
@@ -93,14 +106,24 @@ class OverlayService : Service() {
             )
             val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
             manager.createNotificationChannel(channel)
+            Log.d("OverlayService", "Created notification channel")
         }
     }
 
     private fun buildNotification(): Notification {
+        val pi = PendingIntent.getActivity(
+            this, 0,
+            packageManager.getLaunchIntentForPackage(packageName),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
         return NotificationCompat.Builder(this, "virtual_assist_channel")
             .setContentTitle("Virtual Assistant Running")
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setOngoing(true)
+            .setContentText("Tap to open app")
+            .setContentIntent(pi)
             .build()
     }
 

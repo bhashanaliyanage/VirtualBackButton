@@ -1,6 +1,8 @@
 package com.bhashana.virtualback
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -25,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.content.PermissionChecker.PERMISSION_GRANTED
 import com.bhashana.virtualback.ui.theme.VirtualBackTheme
 import androidx.core.net.toUri
 
@@ -33,57 +36,70 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1001)
+        }
+
         enableEdgeToEdge()
-setContent {
-    VirtualBackTheme {
-        Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Greeting()
+        setContent {
+            VirtualBackTheme {
+                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(innerPadding),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Greeting()
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(16.dp))
 
-                    val context = LocalContext.current
+                            val context = LocalContext.current
 
-                    Button(onClick = {
-                        try {
-                            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                            context.startActivity(intent)
-                        } catch (e: Exception) {
-                            Toast.makeText(context, "Cannot open accessibility settings", Toast.LENGTH_SHORT).show()
+                            Button(onClick = {
+                                try {
+                                    val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                                    context.startActivity(intent)
+                                } catch (e: Exception) {
+                                    Toast.makeText(
+                                        context,
+                                        "Cannot open accessibility settings",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            }) {
+                                Text("Open Accessibility Settings")
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            Button(onClick = {
+                                if (!Settings.canDrawOverlays(context)) {
+                                    val intent = Intent(
+                                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                        "package:${context.packageName}".toUri()
+                                    )
+                                    context.startActivity(intent)
+                                } else {
+                                    Toast.makeText(
+                                        context,
+                                        "Overlay permission already granted",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            }) {
+                                Text("Grant Overlay Permission")
+                            }
                         }
-                    }) {
-                        Text("Open Accessibility Settings")
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Button(onClick = {
-                        if (!Settings.canDrawOverlays(context)) {
-                            val intent = Intent(
-                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                "package:${context.packageName}".toUri()
-                            )
-                            context.startActivity(intent)
-                        } else {
-                            Toast.makeText(context, "Overlay permission already granted", Toast.LENGTH_SHORT).show()
-                        }
-                    }) {
-                        Text("Grant Overlay Permission")
                     }
                 }
             }
         }
-    }
-}
     }
 
     override fun onResume() {
