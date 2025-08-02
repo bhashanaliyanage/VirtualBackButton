@@ -1,15 +1,19 @@
 package com.bhashana.virtualmenu
 
 import android.accessibilityservice.AccessibilityService
+import android.annotation.SuppressLint
+import android.content.Context
 import android.content.Intent
 import android.content.res.ColorStateList
-import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.Point
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
+import android.os.VibratorManager
 import android.provider.Settings
 import android.util.Log
 import android.view.ContextThemeWrapper
@@ -20,36 +24,21 @@ import android.view.View
 import android.view.ViewConfiguration
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
-import android.widget.Button
-import android.widget.ImageButton
+import android.widget.FrameLayout
 import android.widget.ImageView
-import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.unit.dp
 import androidx.core.widget.ImageViewCompat
-import com.google.android.material.button.MaterialButton
 import com.google.android.material.color.DynamicColors
 import com.google.android.material.color.MaterialColors
-import kotlin.math.roundToInt
+import kotlin.math.abs
+import androidx.core.content.edit
 
 class FloatingMenuService : AccessibilityService() {
 
     private lateinit var windowManager: WindowManager
     private var overlayView: View? = null
     private var isShuttingDown = false
+    private var lastDismissUptime = 0L
 
     override fun onServiceConnected() {
         Log.d("FloatingBackService", "onServiceConnected()")
@@ -61,38 +50,37 @@ class FloatingMenuService : AccessibilityService() {
         }
 
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-        // showFloatingMenuNormal()
-        showFloatingMenuCompose()
+        showFloatingMenu()
 
         vibrate()
     }
 
     private fun tintIcon(view: View, iconId: Int, attr: Int) {
         val iv = view.findViewById<ImageView>(iconId)
-        val color = MaterialColors.getColor(iv, attr) // resolves ?attr from current theme
+        val color = MaterialColors.getColor(iv, attr)
         ImageViewCompat.setImageTintList(iv, ColorStateList.valueOf(color))
     }
 
-    private fun showFloatingMenuCompose() {
+    @SuppressLint("ClickableViewAccessibility")
+    private fun showFloatingMenu() {
         if (overlayView != null || isShuttingDown) return
 
         val type = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
 
         val flags = (WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                 or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
-                or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-                or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL)
+                or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
 
         val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
             type,
             flags,
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.CENTER_HORIZONTAL or Gravity.CENTER_VERTICAL
-            x = 0
-            y = 500
+            gravity = Gravity.TOP or Gravity.START
+            /*x = loadInt("overlay_x", 0)          // ← optional persistence
+            y = loadInt("overlay_y", 500)*/
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 layoutInDisplayCutoutMode =
                     WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
@@ -103,15 +91,53 @@ class FloatingMenuService : AccessibilityService() {
         val baseThemed = ContextThemeWrapper(this, R.style.Theme_VirtualBack)
         val dynamicCtx = DynamicColors.wrapContextIfAvailable(baseThemed)
         val inflater = LayoutInflater.from(dynamicCtx)
-        val view = inflater.inflate(R.layout.floating_menu, null)
+
+        // Root acts as touch-guard
+        val root = FrameLayout(dynamicCtx).apply {
+            // Optional: scrim color
+            // setBackgroundColor(0x33000000) // light dim; or leave fully transparent
+            isClickable = true // ensure it can receive clicks
+            isFocusable = true
+        }
+
+        val menu = inflater.inflate(R.layout.floating_menu, root, false)
+
+        // Position menu where you want (e.g., using LayoutParams margins)
+        val lp = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            leftMargin = loadInt("overlay_x", 0)
+            topMargin = loadInt("overlay_y", 500)
+        }
+        root.addView(menu, lp)
+
+        // Close when tapping outside the menu
+        root.setOnTouchListener { _, ev ->
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    val hit = IntArray(2).also { menu.getLocationOnScreen(it) }
+                    val x = ev.rawX.toInt()
+                    val y = ev.rawY.toInt()
+                    val inside = x in hit[0]..(hit[0] + menu.width) &&
+                            y in hit[1]..(hit[1] + menu.height)
+                    if (!inside) {
+                        dismissOverlay(disableService = true)
+                        true // consume
+                    } else false
+                }
+
+                else -> false
+            }
+        }
 
         // Helper to configure an item include
         fun bindItem(rootId: Int, iconRes: Int, labelText: String, onClick: () -> Unit) {
-            val root = view.findViewById<View>(rootId)
-            root.findViewById<ImageView>(R.id.icon).setImageResource(iconRes)
-            root.findViewById<TextView>(R.id.label).text = labelText
-            root.contentDescription = labelText
-            root.setOnClickListener { onClick() }
+            val itemRoot = menu.findViewById<View>(rootId)
+            itemRoot.findViewById<ImageView>(R.id.icon).setImageResource(iconRes)
+            itemRoot.findViewById<TextView>(R.id.label).text = labelText
+            itemRoot.contentDescription = labelText
+            itemRoot.setOnClickListener { onClick() }
         }
 
         bindItem(
@@ -121,7 +147,6 @@ class FloatingMenuService : AccessibilityService() {
         ) {
             performGlobalAction(GLOBAL_ACTION_BACK)
             vibrate()
-            disableSelf()
         }
 
         bindItem(
@@ -137,7 +162,7 @@ class FloatingMenuService : AccessibilityService() {
         bindItem(
             R.id.itemRecents,
             R.drawable.ic_notifications,
-            "Recents"
+            "Panel"
         ) {
             performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
             vibrate()
@@ -145,131 +170,108 @@ class FloatingMenuService : AccessibilityService() {
         }
 
         tintIcon(
-            view.findViewById(R.id.itemBack), R.id.icon,
+            menu.findViewById(R.id.itemBack), R.id.icon,
             com.google.android.material.R.attr.colorOnSurfaceVariant
         )
         tintIcon(
-            view.findViewById(R.id.itemHome), R.id.icon,
+            menu.findViewById(R.id.itemHome), R.id.icon,
             com.google.android.material.R.attr.colorOnSurfaceVariant
         )
         tintIcon(
-            view.findViewById(R.id.itemRecents), R.id.icon,
+            menu.findViewById(R.id.itemRecents), R.id.icon,
             com.google.android.material.R.attr.colorOnSurfaceVariant
         )
 
-        windowManager.addView(view, params)
-        overlayView = view
+        menu.enableDragWithinRoot(root, lp)
+        windowManager.addView(root, params)
+        overlayView = root
+
+        // Optional: save final position when you remove the view
+        overlayView?.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(v: View) = Unit
+            override fun onViewDetachedFromWindow(v: View) {
+                saveInt("overlay_x", lp.leftMargin)
+                saveInt("overlay_y", lp.topMargin)
+            }
+        })
     }
 
-    @Composable
-    private fun FloatingMenu(
-        onBack: () -> Unit,
-        onHome: () -> Unit,
-        onRecents: () -> Unit,
-        onClose: () -> Unit,
-        onDrag: (dx: Int, dy: Int) -> Unit
-    ) {
-        // Simple drag handler that reports pixel deltas upward to the service
-        val dragModifier = Modifier.pointerInput(Unit) {
-            detectDragGestures { change, dragAmount ->
-                change.consume()
-                onDrag(dragAmount.x.roundToInt(), dragAmount.y.roundToInt())
-            }
-        }
-
-        Surface(
-            modifier = dragModifier,
-            shape = RoundedCornerShape(16.dp),
-            tonalElevation = 8.dp,
-            shadowElevation = 8.dp
-        ) {
-            Row(
-                modifier = Modifier
-                    .background(MaterialTheme.colorScheme.surface)
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                IconButton(onClick = onBack) { Text("◀") }     // Back
-                IconButton(onClick = onHome) { Text("⌂") }     // Home
-                IconButton(onClick = onRecents) { Text("▢") }  // Recents
-                IconButton(onClick = onClose) { Text("✕") }    // Close
-            }
-        }
-    }
-
-    private fun runActionAndClose(globalAction: Int) {
-        if (isShuttingDown) return
-        isShuttingDown = true
-
-        vibrate()
-
-        // 1) Perform the system action
-        performGlobalAction(globalAction)
-
-        // 2) Remove overlay immediately to give visual feedback
-        removeFloatingMenu()
-
-        // 3) Disable the service after a short delay so the action completes cleanly
-        Handler(Looper.getMainLooper()).postDelayed({
+    private fun dismissOverlay(disableService: Boolean = false, deferMs: Long = 120L) {
+        overlayView?.let { v ->
             try {
-                disableSelf()
-            } catch (t: Throwable) {
-                Log.e("FloatingBackService", "disableSelf failed", t)
-                // As a fallback, let the service die naturally.
+                windowManager.removeViewImmediate(v)
+            } catch (_: Exception) {
             }
-        }, 150) // 100–300ms works well; adjust if needed
+        }
+        overlayView = null
+        lastDismissUptime = SystemClock.uptimeMillis()
+
+        if (disableService) {
+            Handler(Looper.getMainLooper()).postDelayed({
+                try {
+                    disableSelf()
+                } catch (_: Throwable) {
+                }
+            }, deferMs) // defer past the current gesture & frame(s)
+        }
     }
 
-    private fun showFloatingMenuNormal() {
-        // Avoid duplicates if service reconnects
-        if (overlayView != null) return
+    @SuppressLint("ClickableViewAccessibility")
+    private fun View.enableDragWithinRoot(
+        root: FrameLayout,
+        lp: FrameLayout.LayoutParams
+    ) {
+        var downX = 0f
+        var downY = 0f
+        var startLeft = 0
+        var startTop = 0
+        val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
 
-        val layout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.argb(180, 0, 0, 0))
-            setPadding(30, 30, 30, 30)
-
-            addView(createButton("Back") { runActionAndClose(GLOBAL_ACTION_BACK) })
-            addView(createButton("Notifications") { runActionAndClose(GLOBAL_ACTION_NOTIFICATIONS) })
-            addView(createButton("Home") { runActionAndClose(GLOBAL_ACTION_HOME) })
+        // For clamping within the screen
+        fun screenSize(): Point = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val wm = context.getSystemService(WindowManager::class.java)
+            val b = wm.currentWindowMetrics.bounds
+            Point(b.width(), b.height())
+        } else {
+            @Suppress("DEPRECATION")
+            Point().also {
+                (context.getSystemService(Context.WINDOW_SERVICE) as WindowManager)
+                    .defaultDisplay.getSize(it)
+            }
         }
 
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            else
-                @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            gravity = Gravity.CENTER
-        }
+        fun clamp(v: Int, min: Int, max: Int) = v.coerceIn(min, max)
 
-        overlayView = layout
-        windowManager.addView(layout, params)
-        makeDraggable(layout, params)
-        Log.d("FloatingBackService", "Overlay added")
-    }
-
-    private fun makeDraggable(view: View, params: WindowManager.LayoutParams) {
-        var lastX = 0f
-        var lastY = 0f
-        view.setOnTouchListener { v, e ->
+        setOnTouchListener { _, e ->
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    lastX = e.rawX; lastY = e.rawY; true
+                    downX = e.rawX
+                    downY = e.rawY
+                    startLeft = lp.leftMargin
+                    startTop = lp.topMargin
+                    true
                 }
 
                 MotionEvent.ACTION_MOVE -> {
-                    val dx = (e.rawX - lastX).toInt()
-                    val dy = (e.rawY - lastY).toInt()
-                    params.x += dx; params.y += dy
-                    windowManager.updateViewLayout(v, params)
-                    lastX = e.rawX; lastY = e.rawY
+                    val dx = (e.rawX - downX).toInt()
+                    val dy = (e.rawY - downY).toInt()
+
+                    val (sw, sh) = screenSize().let { it.x to it.y }
+                    val vw = width.takeIf { it > 0 } ?: 1
+                    val vh = height.takeIf { it > 0 } ?: 1
+
+                    lp.leftMargin = clamp(startLeft + dx, -vw / 2, sw - vw / 2)
+                    lp.topMargin = clamp(startTop + dy, 0, sh - vh)
+
+                    root.updateViewLayout(this, lp)   // <- update child in the root
                     true
+                }
+
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    val moved = (abs(e.rawX - downX) > touchSlop) ||
+                            (abs(e.rawY - downY) > touchSlop)
+                    if (!moved) performClick()
+                    moved
                 }
 
                 else -> false
@@ -277,15 +279,16 @@ class FloatingMenuService : AccessibilityService() {
         }
     }
 
+    // Tiny helpers for persistence
+    private fun Context.saveInt(key: String, value: Int) {
+        getSharedPreferences("overlay_prefs", Context.MODE_PRIVATE).edit { putInt(key, value) }
+    }
+
+    private fun Context.loadInt(key: String, def: Int) =
+        getSharedPreferences("overlay_prefs", Context.MODE_PRIVATE).getInt(key, def)
+
+
     private fun removeFloatingMenu() {
-        /*overlayView?.let {
-            try {
-                windowManager.removeView(it)
-            } catch (_: Exception) {
-            }
-            overlayView = null
-            Log.d("FloatingBackService", "Overlay removed")
-        }*/
         val view = overlayView ?: return
         try {
             windowManager.removeView(view)
@@ -295,13 +298,6 @@ class FloatingMenuService : AccessibilityService() {
             overlayView = null
         }
     }
-
-    private fun createButton(textLabel: String, onClick: () -> Unit): Button =
-        Button(this).apply {
-            text = textLabel
-            setOnClickListener { onClick() }
-        }
-
 
     override fun onUnbind(intent: Intent?): Boolean {
         removeFloatingMenu()
@@ -313,16 +309,41 @@ class FloatingMenuService : AccessibilityService() {
     override fun onInterrupt() {}
 
     override fun onDestroy() {
-        removeFloatingMenu()
         super.onDestroy()
+        // idempotent: dismissOverlay() already null-checks
+        dismissOverlay(disableService = false)
     }
 
     private fun vibrate() {
-        val v = getSystemService(VIBRATOR_SERVICE) as Vibrator
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            v.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK))
+        // Get a Vibrator in the SDK-correct way
+        val vibrator: Vibrator? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val vm = getSystemService(VibratorManager::class.java)
+            vm?.defaultVibrator
         } else {
-            v.vibrate(50)
+            @Suppress("DEPRECATION")
+            getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+        }
+
+        if (vibrator?.hasVibrator() != true) return
+
+        when {
+            // Predefined effects (API 29+)
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q -> {
+                vibrator.vibrate(
+                    VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK)
+                )
+            }
+            // One-shot effect (API 26+)
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.O -> {
+                vibrator.vibrate(
+                    VibrationEffect.createOneShot(50L, VibrationEffect.DEFAULT_AMPLITUDE)
+                )
+            }
+            // Legacy (pre-26)
+            else -> {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(50L)
+            }
         }
     }
 }

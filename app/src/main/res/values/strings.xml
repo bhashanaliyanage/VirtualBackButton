@@ -6,5 +6,5 @@
     <string name="home">Go Home</string>
     <string name="recents">Open Recents</string>
     <string name="floating_menu_title">Interaction Menu</string>
-    <string name="floating_menu_subtitle">Interaction Menu Subtitle</string>
+    <string name="floating_menu_subtitle">Navigation shortcuts</string>
 </resources>
