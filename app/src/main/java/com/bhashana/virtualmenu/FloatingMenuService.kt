@@ -7,6 +7,8 @@ import android.content.Intent
 import android.content.res.ColorStateList
 import android.graphics.PixelFormat
 import android.graphics.Point
+import android.graphics.RenderEffect
+import android.graphics.Shader
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -32,6 +34,9 @@ import com.google.android.material.color.DynamicColors
 import com.google.android.material.color.MaterialColors
 import kotlin.math.abs
 import androidx.core.content.edit
+import androidx.core.graphics.ColorUtils
+import androidx.core.view.ViewCompat
+import com.google.android.material.shape.MaterialShapeDrawable
 
 class FloatingMenuService : AccessibilityService() {
 
@@ -102,6 +107,20 @@ class FloatingMenuService : AccessibilityService() {
 
         val menu = inflater.inflate(R.layout.floating_menu, root, false)
 
+        val shapeDrawable = MaterialShapeDrawable().apply {
+            initializeElevationOverlay(menu.context)
+            setCornerSize(16f) // or from resources: context.resources.getDimension(R.dimen.corner_radius)
+            fillColor = ColorStateList.valueOf(
+                ColorUtils.setAlphaComponent(
+                    MaterialColors.getColor(menu, com.google.android.material.R.attr.colorSurface),
+                    (0.9f * 255).toInt()
+                )
+            )
+            elevation = ViewCompat.getElevation(menu)
+        }
+
+        menu.background = shapeDrawable
+
         // Position menu where you want (e.g., using LayoutParams margins)
         val lp = FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.WRAP_CONTENT,
@@ -169,6 +188,30 @@ class FloatingMenuService : AccessibilityService() {
             disableSelf()
         }
 
+        bindItem(
+            R.id.itemLock,
+            R.drawable.ic_lock,
+            "Lock"
+        ) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
+            }
+            vibrate()
+            disableSelf()
+        }
+
+        bindItem(
+            R.id.itemSS,
+            R.drawable.ic_ss,
+            "Capture"
+        ) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT)
+            }
+            vibrate()
+            disableSelf()
+        }
+
         tintIcon(
             menu.findViewById(R.id.itemBack), R.id.icon,
             com.google.android.material.R.attr.colorOnSurfaceVariant
@@ -179,6 +222,14 @@ class FloatingMenuService : AccessibilityService() {
         )
         tintIcon(
             menu.findViewById(R.id.itemRecents), R.id.icon,
+            com.google.android.material.R.attr.colorOnSurfaceVariant
+        )
+        tintIcon(
+            menu.findViewById(R.id.itemLock), R.id.icon,
+            com.google.android.material.R.attr.colorOnSurfaceVariant
+        )
+        tintIcon(
+            menu.findViewById(R.id.itemSS), R.id.icon,
             com.google.android.material.R.attr.colorOnSurfaceVariant
         )
 
@@ -260,7 +311,7 @@ class FloatingMenuService : AccessibilityService() {
                     val vw = width.takeIf { it > 0 } ?: 1
                     val vh = height.takeIf { it > 0 } ?: 1
 
-                    lp.leftMargin = clamp(startLeft + dx, -vw / 2, sw - vw / 2)
+                    lp.leftMargin = clamp(startLeft + dx, 0, sw - vw)
                     lp.topMargin = clamp(startTop + dy, 0, sh - vh)
 
                     root.updateViewLayout(this, lp)   // <- update child in the root
