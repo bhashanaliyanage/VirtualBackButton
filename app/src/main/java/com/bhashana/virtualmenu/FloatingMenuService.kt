@@ -7,8 +7,6 @@ import android.content.Intent
 import android.content.res.ColorStateList
 import android.graphics.PixelFormat
 import android.graphics.Point
-import android.graphics.RenderEffect
-import android.graphics.Shader
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -29,14 +27,14 @@ import android.view.accessibility.AccessibilityEvent
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.TextView
-import androidx.core.widget.ImageViewCompat
-import com.google.android.material.color.DynamicColors
-import com.google.android.material.color.MaterialColors
-import kotlin.math.abs
 import androidx.core.content.edit
 import androidx.core.graphics.ColorUtils
 import androidx.core.view.ViewCompat
+import androidx.core.widget.ImageViewCompat
+import com.google.android.material.color.DynamicColors
+import com.google.android.material.color.MaterialColors
 import com.google.android.material.shape.MaterialShapeDrawable
+import kotlin.math.abs
 
 class FloatingMenuService : AccessibilityService() {
 
@@ -100,7 +98,7 @@ class FloatingMenuService : AccessibilityService() {
         // Root acts as touch-guard
         val root = FrameLayout(dynamicCtx).apply {
             // Optional: scrim color
-            // setBackgroundColor(0x33000000) // light dim; or leave fully transparent
+            setBackgroundColor(0x33000000) // light dim; or leave fully transparent
             isClickable = true // ensure it can receive clicks
             isFocusable = true
         }
@@ -286,7 +284,7 @@ class FloatingMenuService : AccessibilityService() {
         } else {
             @Suppress("DEPRECATION")
             Point().also {
-                (context.getSystemService(Context.WINDOW_SERVICE) as WindowManager)
+                (context.getSystemService(WINDOW_SERVICE) as WindowManager)
                     .defaultDisplay.getSize(it)
             }
         }
@@ -332,11 +330,11 @@ class FloatingMenuService : AccessibilityService() {
 
     // Tiny helpers for persistence
     private fun Context.saveInt(key: String, value: Int) {
-        getSharedPreferences("overlay_prefs", Context.MODE_PRIVATE).edit { putInt(key, value) }
+        getSharedPreferences("overlay_prefs", MODE_PRIVATE).edit { putInt(key, value) }
     }
 
     private fun Context.loadInt(key: String, def: Int) =
-        getSharedPreferences("overlay_prefs", Context.MODE_PRIVATE).getInt(key, def)
+        getSharedPreferences("overlay_prefs", MODE_PRIVATE).getInt(key, def)
 
 
     private fun removeFloatingMenu() {
@@ -372,7 +370,7 @@ class FloatingMenuService : AccessibilityService() {
             vm?.defaultVibrator
         } else {
             @Suppress("DEPRECATION")
-            getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+            getSystemService(VIBRATOR_SERVICE) as? Vibrator
         }
 
         if (vibrator?.hasVibrator() != true) return
