@@ -109,7 +109,7 @@ class FloatingMenuService : AccessibilityService() {
 
         val shapeDrawable = MaterialShapeDrawable().apply {
             initializeElevationOverlay(menu.context)
-            setCornerSize(16f) // or from resources: context.resources.getDimension(R.dimen.corner_radius)
+            setCornerSize(32f) // or from resources: context.resources.getDimension(R.dimen.corner_radius)
             fillColor = ColorStateList.valueOf(
                 ColorUtils.setAlphaComponent(
                     MaterialColors.getColor(menu, com.google.android.material.R.attr.colorSurface),
