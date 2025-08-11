@@ -5,6 +5,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.content.res.ColorStateList
+import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.graphics.Point
 import android.os.Build
@@ -29,6 +30,8 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.core.content.edit
 import androidx.core.graphics.ColorUtils
+import androidx.core.graphics.component1
+import androidx.core.graphics.component2
 import androidx.core.view.ViewCompat
 import androidx.core.widget.ImageViewCompat
 import com.google.android.material.color.DynamicColors
@@ -119,15 +122,29 @@ class FloatingMenuService : AccessibilityService() {
 
         menu.background = shapeDrawable
 
+        val suf = orientationSuffix(root.context)
+        val (sw, sh) = currentScreenSize(root.context)
+
         // Position menu where you want (e.g., using LayoutParams margins)
         val lp = FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.WRAP_CONTENT,
             FrameLayout.LayoutParams.WRAP_CONTENT
         ).apply {
-            leftMargin = loadInt("overlay_x", 0)
-            topMargin = loadInt("overlay_y", 500)
+            leftMargin = loadInt("overlay_x_$suf", (sw - 540) / 2)
+            topMargin = loadInt("overlay_y_$suf", (sh - 703) / 2)
+            Log.d("FloatingBackService", "Screen Orientation: $suf, Current screen size: $sw x $sh")
         }
         root.addView(menu, lp)
+
+        // Once menu is laid out, adjust so it's truly centered
+        menu.post {
+            if (!hasSavedPosition(suf)) {
+                lp.leftMargin = (sw - menu.width) / 2
+                lp.topMargin = (sh - menu.height) / 2
+                Log.d("FloatingBackService", "Current menu size: ${menu.width} x ${menu.height}")
+                root.updateViewLayout(menu, lp)
+            }
+        }
 
         // Close when tapping outside the menu
         root.setOnTouchListener { _, ev ->
@@ -239,11 +256,35 @@ class FloatingMenuService : AccessibilityService() {
         overlayView?.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
             override fun onViewAttachedToWindow(v: View) = Unit
             override fun onViewDetachedFromWindow(v: View) {
-                saveInt("overlay_x", lp.leftMargin)
-                saveInt("overlay_y", lp.topMargin)
+                val suf = orientationSuffix(v.context)
+                saveInt("overlay_x_$suf", lp.leftMargin)
+                saveInt("overlay_y_$suf", lp.topMargin)
+                Log.d(
+                    "FloatingBackService",
+                    "Screen orientation: $suf, position: (${lp.leftMargin}, ${lp.topMargin})"
+                )
             }
         })
     }
+
+    private fun Context.hasSavedPosition(suf: String): Boolean {
+        val prefs = getSharedPreferences("overlay_prefs", MODE_PRIVATE)
+        return prefs.contains("overlay_x_$suf") && prefs.contains("overlay_y_$suf")
+    }
+
+    private fun currentScreenSize(ctx: Context): Point =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val b = ctx.getSystemService(WindowManager::class.java).currentWindowMetrics.bounds
+            Point(b.width(), b.height())
+        } else {
+            @Suppress("DEPRECATION")
+            Point().also { (ctx.getSystemService(WINDOW_SERVICE) as WindowManager).defaultDisplay.getSize(it) }
+        }
+
+    private fun orientationSuffix(ctx: Context) = if (ctx.isLandscape()) "land" else "port"
+
+    private fun Context.isLandscape(): Boolean =
+        resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     private fun dismissOverlay(disableService: Boolean = false, deferMs: Long = 120L) {
         overlayView?.let { v ->
