@@ -247,6 +247,15 @@ class FloatingMenuService : AccessibilityService() {
             menu.findViewById(R.id.itemSS), R.id.icon,
             com.google.android.material.R.attr.colorOnSurfaceVariant
         )
+        tintIcon(menu, R.id.logo, com.google.android.material.R.attr.colorOnSurface)
+
+        /*// Tint logo
+        val logoImageView = menu.findViewById<ImageView>(R.id.logo)
+        val color = MaterialColors.getColor(
+            logoImageView,
+            com.google.android.material.R.attr.colorOnSurfaceVariant
+        )
+        ImageViewCompat.setImageTintList(logoImageView, ColorStateList.valueOf(color))*/
 
         menu.enableDragWithinRoot(root, lp)
         windowManager.addView(root, params)
@@ -278,7 +287,11 @@ class FloatingMenuService : AccessibilityService() {
             Point(b.width(), b.height())
         } else {
             @Suppress("DEPRECATION")
-            Point().also { (ctx.getSystemService(WINDOW_SERVICE) as WindowManager).defaultDisplay.getSize(it) }
+            Point().also {
+                (ctx.getSystemService(WINDOW_SERVICE) as WindowManager).defaultDisplay.getSize(
+                    it
+                )
+            }
         }
 
     private fun orientationSuffix(ctx: Context) = if (ctx.isLandscape()) "land" else "port"
