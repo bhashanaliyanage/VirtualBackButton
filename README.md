@@ -38,5 +38,3 @@ If you’d like to suggest new features or report bugs:
 
 ## License
 Specify your license here (MIT is common for open-source apps).
-
----
