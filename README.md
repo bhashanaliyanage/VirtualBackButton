@@ -36,8 +36,6 @@ If you’d like to suggest new features or report bugs:
 - Open an **issue**
 - Or submit a **pull request**
 
----
-
 ## License
 Specify your license here (MIT is common for open-source apps).
 
