@@ -18,7 +18,7 @@ Built for users who want **essential shortcuts at their fingertips**, Axio offer
 ---
 
 ## Installation
-1. Head over to the **[Releases tab](./releases)**
+1. Head over to the [releases](https://github.com/bhashanaliyanage/VirtualBackButton/releases)
 2. Download the latest `.apk` file
 3. Install it on your Android device (you may need to enable *Install from unknown sources*)
 
