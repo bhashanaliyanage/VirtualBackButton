@@ -67,215 +67,215 @@ class FloatingMenuService : AccessibilityService() {
         ImageViewCompat.setImageTintList(iv, ColorStateList.valueOf(color))
     }
 
-@SuppressLint("ClickableViewAccessibility")
-private fun showFloatingMenu() {
-    if (overlayView != null || isShuttingDown) return
+    @SuppressLint("ClickableViewAccessibility")
+    private fun showFloatingMenu() {
+        if (overlayView != null || isShuttingDown) return
 
-    val type = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
+        val type = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
 
-    val flags = (WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-            or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
-            or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
+        val flags = (WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
 
-    val params = WindowManager.LayoutParams(
-        WindowManager.LayoutParams.MATCH_PARENT,
-        WindowManager.LayoutParams.MATCH_PARENT,
-        type,
-        flags,
-        PixelFormat.TRANSLUCENT
-    ).apply {
-        gravity = Gravity.TOP or Gravity.START
-        /*x = loadInt("overlay_x", 0)          // ← optional persistence
-        y = loadInt("overlay_y", 500)*/
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            layoutInDisplayCutoutMode =
-                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-        }
-    }
-
-    // Use a Material3 theme for proper attribute resolution
-    val baseThemed = ContextThemeWrapper(this, R.style.Theme_VirtualBack)
-    val dynamicCtx = DynamicColors.wrapContextIfAvailable(baseThemed)
-    val inflater = LayoutInflater.from(dynamicCtx)
-
-    // Root acts as touch-guard
-    val root = FrameLayout(dynamicCtx).apply {
-        // Optional: scrim color
-        setBackgroundColor(0x33000000) // light dim; or leave fully transparent
-        isClickable = true // ensure it can receive clicks
-        isFocusable = true
-    }
-
-    val menu = inflater.inflate(R.layout.floating_menu, root, false)
-
-    val shapeDrawable = MaterialShapeDrawable().apply {
-        initializeElevationOverlay(menu.context)
-        setCornerSize(32f) // or from resources: context.resources.getDimension(R.dimen.corner_radius)
-        fillColor = ColorStateList.valueOf(
-            ColorUtils.setAlphaComponent(
-                MaterialColors.getColor(menu, com.google.android.material.R.attr.colorSurface),
-                (0.9f * 255).toInt()
-            )
-        )
-
-        elevation = ViewCompat.getElevation(menu)
-    }
-
-    menu.background = shapeDrawable
-
-    val suf = orientationSuffix(root.context)
-    val (sw, sh) = currentScreenSize(root.context)
-
-    // Position menu where you want (e.g., using LayoutParams margins)
-    val lp = FrameLayout.LayoutParams(
-        FrameLayout.LayoutParams.WRAP_CONTENT,
-        FrameLayout.LayoutParams.WRAP_CONTENT
-    ).apply {
-        leftMargin = loadInt("overlay_x_$suf", (sw - 540) / 2)
-        topMargin = loadInt("overlay_y_$suf", (sh - 703) / 2)
-        Log.d("FloatingBackService", "Screen Orientation: $suf, Current screen size: $sw x $sh")
-    }
-    root.addView(menu, lp)
-
-    // Once menu is laid out, adjust so it's truly centered
-    menu.post {
-        if (!hasSavedPosition(suf)) {
-            lp.leftMargin = (sw - menu.width) / 2
-            lp.topMargin = (sh - menu.height) / 2
-            Log.d("FloatingBackService", "Current menu size: ${menu.width} x ${menu.height}")
-            root.updateViewLayout(menu, lp)
-        }
-    }
-
-    // Close when tapping outside the menu
-    root.setOnTouchListener { _, ev ->
-        when (ev.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                val hit = IntArray(2).also { menu.getLocationOnScreen(it) }
-                val x = ev.rawX.toInt()
-                val y = ev.rawY.toInt()
-                val inside = x in hit[0]..(hit[0] + menu.width) &&
-                        y in hit[1]..(hit[1] + menu.height)
-                if (!inside) {
-                    dismissOverlay(disableService = true)
-                    true // consume
-                } else false
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            type,
+            flags,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            /*x = loadInt("overlay_x", 0)          // ← optional persistence
+            y = loadInt("overlay_y", 500)*/
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             }
-
-            else -> false
         }
-    }
 
-    // Helper to configure an item include
-    fun bindItem(rootId: Int, iconRes: Int, labelText: String, onClick: () -> Unit) {
-        val itemRoot = menu.findViewById<View>(rootId)
-        itemRoot.findViewById<ImageView>(R.id.icon).setImageResource(iconRes)
-        itemRoot.findViewById<TextView>(R.id.label).text = labelText
-        itemRoot.contentDescription = labelText
-        itemRoot.setOnClickListener { onClick() }
-    }
+        // Use a Material3 theme for proper attribute resolution
+        val baseThemed = ContextThemeWrapper(this, R.style.Theme_VirtualBack)
+        val dynamicCtx = DynamicColors.wrapContextIfAvailable(baseThemed)
+        val inflater = LayoutInflater.from(dynamicCtx)
 
-    bindItem(
-        R.id.itemBack,
-        R.drawable.ic_back,                // <- your drawable
-        "Back"
-    ) {
-        performGlobalAction(GLOBAL_ACTION_BACK)
-        vibrate()
-    }
-
-    bindItem(
-        R.id.itemHome,
-        R.drawable.ic_home,
-        "Home"
-    ) {
-        performGlobalAction(GLOBAL_ACTION_HOME)
-        vibrate()
-        disableSelf()
-    }
-
-    bindItem(
-        R.id.itemRecents,
-        R.drawable.ic_notifications,
-        "Panel"
-    ) {
-        performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
-        vibrate()
-        disableSelf()
-    }
-
-    bindItem(
-        R.id.itemLock,
-        R.drawable.ic_lock,
-        "Lock"
-    ) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
+        // Root acts as touch-guard
+        val root = FrameLayout(dynamicCtx).apply {
+            // Optional: scrim color
+            setBackgroundColor(0x33000000) // light dim; or leave fully transparent
+            isClickable = true // ensure it can receive clicks
+            isFocusable = true
         }
-        vibrate()
-        disableSelf()
-    }
 
-    bindItem(
-        R.id.itemSS,
-        R.drawable.ic_ss,
-        "Capture"
-    ) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT)
-        }
-        vibrate()
-        disableSelf()
-    }
+        val menu = inflater.inflate(R.layout.floating_menu, root, false)
 
-    tintIcon(
-        menu.findViewById(R.id.itemBack), R.id.icon,
-        com.google.android.material.R.attr.colorOnSurfaceVariant
-    )
-    tintIcon(
-        menu.findViewById(R.id.itemHome), R.id.icon,
-        com.google.android.material.R.attr.colorOnSurfaceVariant
-    )
-    tintIcon(
-        menu.findViewById(R.id.itemRecents), R.id.icon,
-        com.google.android.material.R.attr.colorOnSurfaceVariant
-    )
-    tintIcon(
-        menu.findViewById(R.id.itemLock), R.id.icon,
-        com.google.android.material.R.attr.colorOnSurfaceVariant
-    )
-    tintIcon(
-        menu.findViewById(R.id.itemSS), R.id.icon,
-        com.google.android.material.R.attr.colorOnSurfaceVariant
-    )
-    tintIcon(menu, R.id.logo, com.google.android.material.R.attr.colorOnSurface)
-
-    /*// Tint logo
-    val logoImageView = menu.findViewById<ImageView>(R.id.logo)
-    val color = MaterialColors.getColor(
-        logoImageView,
-        com.google.android.material.R.attr.colorOnSurfaceVariant
-    )
-    ImageViewCompat.setImageTintList(logoImageView, ColorStateList.valueOf(color))*/
-
-    menu.enableDragWithinRoot(root, lp)
-    windowManager.addView(root, params)
-    overlayView = root
-
-    // Optional: save final position when you remove the view
-    overlayView?.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
-        override fun onViewAttachedToWindow(v: View) = Unit
-        override fun onViewDetachedFromWindow(v: View) {
-            val suf = orientationSuffix(v.context)
-            saveInt("overlay_x_$suf", lp.leftMargin)
-            saveInt("overlay_y_$suf", lp.topMargin)
-            Log.d(
-                "FloatingBackService",
-                "Screen orientation: $suf, position: (${lp.leftMargin}, ${lp.topMargin})"
+        val shapeDrawable = MaterialShapeDrawable().apply {
+            initializeElevationOverlay(menu.context)
+            setCornerSize(32f) // or from resources: context.resources.getDimension(R.dimen.corner_radius)
+            fillColor = ColorStateList.valueOf(
+                ColorUtils.setAlphaComponent(
+                    MaterialColors.getColor(menu, com.google.android.material.R.attr.colorSurface),
+                    (0.9f * 255).toInt()
+                )
             )
+
+            elevation = ViewCompat.getElevation(menu)
         }
-    })
-}
+
+        menu.background = shapeDrawable
+
+        val suf = orientationSuffix(root.context)
+        val (sw, sh) = currentScreenSize(root.context)
+
+        // Position menu where you want (e.g., using LayoutParams margins)
+        val lp = FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            leftMargin = loadInt("overlay_x_$suf", (sw - 540) / 2)
+            topMargin = loadInt("overlay_y_$suf", (sh - 703) / 2)
+            Log.d("FloatingBackService", "Screen Orientation: $suf, Current screen size: $sw x $sh")
+        }
+        root.addView(menu, lp)
+
+        // Once menu is laid out, adjust so it's truly centered
+        menu.post {
+            if (!hasSavedPosition(suf)) {
+                lp.leftMargin = (sw - menu.width) / 2
+                lp.topMargin = (sh - menu.height) / 2
+                Log.d("FloatingBackService", "Current menu size: ${menu.width} x ${menu.height}")
+                root.updateViewLayout(menu, lp)
+            }
+        }
+
+        // Close when tapping outside the menu
+        root.setOnTouchListener { _, ev ->
+            when (ev.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    val hit = IntArray(2).also { menu.getLocationOnScreen(it) }
+                    val x = ev.rawX.toInt()
+                    val y = ev.rawY.toInt()
+                    val inside = x in hit[0]..(hit[0] + menu.width) &&
+                            y in hit[1]..(hit[1] + menu.height)
+                    if (!inside) {
+                        dismissOverlay(disableService = true)
+                        true // consume
+                    } else false
+                }
+
+                else -> false
+            }
+        }
+
+        // Helper to configure an item include
+        fun bindItem(rootId: Int, iconRes: Int, labelText: String, onClick: () -> Unit) {
+            val itemRoot = menu.findViewById<View>(rootId)
+            itemRoot.findViewById<ImageView>(R.id.icon).setImageResource(iconRes)
+            itemRoot.findViewById<TextView>(R.id.label).text = labelText
+            itemRoot.contentDescription = labelText
+            itemRoot.setOnClickListener { onClick() }
+        }
+
+        bindItem(
+            R.id.itemBack,
+            R.drawable.ic_back,                // <- your drawable
+            "Back"
+        ) {
+            performGlobalAction(GLOBAL_ACTION_BACK)
+            vibrate()
+        }
+
+        bindItem(
+            R.id.itemHome,
+            R.drawable.ic_home,
+            "Home"
+        ) {
+            performGlobalAction(GLOBAL_ACTION_HOME)
+            vibrate()
+            disableSelf()
+        }
+
+        bindItem(
+            R.id.itemRecents,
+            R.drawable.ic_notifications,
+            "Panel"
+        ) {
+            performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
+            vibrate()
+            disableSelf()
+        }
+
+        bindItem(
+            R.id.itemLock,
+            R.drawable.ic_lock,
+            "Lock"
+        ) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
+            }
+            vibrate()
+            disableSelf()
+        }
+
+        bindItem(
+            R.id.itemSS,
+            R.drawable.ic_ss,
+            "Capture"
+        ) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT)
+            }
+            vibrate()
+            disableSelf()
+        }
+
+        tintIcon(
+            menu.findViewById(R.id.itemBack), R.id.icon,
+            com.google.android.material.R.attr.colorOnSurfaceVariant
+        )
+        tintIcon(
+            menu.findViewById(R.id.itemHome), R.id.icon,
+            com.google.android.material.R.attr.colorOnSurfaceVariant
+        )
+        tintIcon(
+            menu.findViewById(R.id.itemRecents), R.id.icon,
+            com.google.android.material.R.attr.colorOnSurfaceVariant
+        )
+        tintIcon(
+            menu.findViewById(R.id.itemLock), R.id.icon,
+            com.google.android.material.R.attr.colorOnSurfaceVariant
+        )
+        tintIcon(
+            menu.findViewById(R.id.itemSS), R.id.icon,
+            com.google.android.material.R.attr.colorOnSurfaceVariant
+        )
+        tintIcon(menu, R.id.logo, com.google.android.material.R.attr.colorOnSurface)
+
+        /*// Tint logo
+        val logoImageView = menu.findViewById<ImageView>(R.id.logo)
+        val color = MaterialColors.getColor(
+            logoImageView,
+            com.google.android.material.R.attr.colorOnSurfaceVariant
+        )
+        ImageViewCompat.setImageTintList(logoImageView, ColorStateList.valueOf(color))*/
+
+        menu.enableDragWithinRoot(root, lp)
+        windowManager.addView(root, params)
+        overlayView = root
+
+        // Optional: save final position when you remove the view
+        overlayView?.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(v: View) = Unit
+            override fun onViewDetachedFromWindow(v: View) {
+                val suf = orientationSuffix(v.context)
+                saveInt("overlay_x_$suf", lp.leftMargin)
+                saveInt("overlay_y_$suf", lp.topMargin)
+                Log.d(
+                    "FloatingBackService",
+                    "Screen orientation: $suf, position: (${lp.leftMargin}, ${lp.topMargin})"
+                )
+            }
+        })
+    }
 
     private fun Context.hasSavedPosition(suf: String): Boolean {
         val prefs = getSharedPreferences("overlay_prefs", MODE_PRIVATE)
