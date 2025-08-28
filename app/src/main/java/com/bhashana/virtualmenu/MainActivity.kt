@@ -33,6 +33,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import com.bhashana.virtualmenu.ui.theme.VirtualBackTheme
 
@@ -73,8 +74,10 @@ fun SoftGlowBackground(
             .background(bg)
             .drawWithCache {
                 // compute once per size/color change
-                val center = Offset(size.width * centerBias.first,
-                    size.height * centerBias.second)
+                val center = Offset(
+                    size.width * centerBias.first,
+                    size.height * centerBias.second
+                )
                 val radius = size.minDimension * radiusFactor
                 val brush = Brush.radialGradient(
                     colors = listOf(glowColor, Color.Transparent),
@@ -91,76 +94,103 @@ fun SoftGlowBackground(
 
 @Composable
 private fun MainContent() {
-    SoftGlowBackground(
-        modifier = Modifier.fillMaxSize(),
-        glowColor = Color.White.copy(alpha = 0.075f),  // subtler
-        centerBias = 0f to 0.4f,                  // move highlight
-        radiusFactor = 0.9f
-    )
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        containerColor = Color.Transparent,
-        contentColor = MaterialTheme.colorScheme.onSurface
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+    Box(Modifier.fillMaxSize()) {
+        SoftGlowBackground(
+            modifier = Modifier.fillMaxSize(),
+            glowColor = Color.White.copy(alpha = 0.075f),  // subtler
+            centerBias = 0f to 0.4f,                  // move highlight
+            radiusFactor = 0.9f
+        )
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            containerColor = Color.Transparent,
+            contentColor = MaterialTheme.colorScheme.onSurface
+        ) { innerPadding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                contentAlignment = Alignment.Center
             ) {
-                Greeting()
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Greeting()
 
-                Spacer(Modifier.height(16.dp))
+                    Spacer(Modifier.height(16.dp))
 
-                val context = LocalContext.current
+                    val context = LocalContext.current
 
-                // Primary button picks up dynamic color automatically
-                Button(
-                    onClick = {
-                        try {
-                            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                    // Primary button picks up dynamic color automatically
+                    Button(
+                        onClick = {
+                            try {
+                                val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                                context.startActivity(intent)
+                            } catch (_: Exception) {
+                                Toast.makeText(
+                                    context,
+                                    "Cannot open accessibility settings",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }, Modifier.width(200.dp)
+                    ) {
+                        Text(
+                            "Open Accessibility Settings",
+                            textAlign = TextAlign.Center
+                        )
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+
+                    // Use an outlined style to vary emphasis
+                    OutlinedButton(onClick = {
+                        if (!Settings.canDrawOverlays(context)) {
+                            val intent = Intent(
+                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                "package:${context.packageName}".toUri()
+                            )
                             context.startActivity(intent)
-                        } catch (_: Exception) {
+                        } else {
                             Toast.makeText(
                                 context,
-                                "Cannot open accessibility settings",
+                                "Overlay permission already granted",
                                 Toast.LENGTH_SHORT
                             ).show()
                         }
-                    }, Modifier.width(200.dp)
-                ) {
-                    Text(
-                        "Open Accessibility Settings",
-                        textAlign = TextAlign.Center
-                    )
-                }
-
-                Spacer(Modifier.height(16.dp))
-
-                // Use an outlined style to vary emphasis
-                OutlinedButton(onClick = {
-                    if (!Settings.canDrawOverlays(context)) {
-                        val intent = Intent(
-                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                            "package:${context.packageName}".toUri()
+                    }, Modifier.width(200.dp)) {
+                        Text(
+                            "Grant Overlay Permission",
+                            textAlign = TextAlign.Center
                         )
-                        context.startActivity(intent)
-                    } else {
-                        Toast.makeText(
-                            context,
-                            "Overlay permission already granted",
-                            Toast.LENGTH_SHORT
-                        ).show()
                     }
-                }, Modifier.width(200.dp)) {
-                    Text(
-                        "Grant Overlay Permission",
-                        textAlign = TextAlign.Center
-                    )
+
+                    Button(
+                        onClick = {
+                            if (!Settings.canDrawOverlays(context)) {
+                                // send user to overlay permission screen
+                                val intent = Intent(
+                                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                    "package:${context.packageName}".toUri()
+                                )
+                                context.startActivity(intent)
+                                return@Button
+                            }
+                            val start = Intent(context, TriggerOverlayService::class.java)
+                                .setAction(MenuContract.ACTION_START_OVERLAY)
+
+                            // Start (or re-start) foreground overlay
+                            ContextCompat.startForegroundService(context, start)
+
+                            Toast.makeText(context, "Floating button enabled", Toast.LENGTH_SHORT)
+                                .show()
+                        },
+                        modifier = Modifier.width(220.dp)
+                    ) {
+                        Text("Enable Floating Button", textAlign = TextAlign.Center)
+                    }
                 }
             }
         }
