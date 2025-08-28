@@ -2,8 +2,10 @@ package com.bhashana.virtualmenu
 
 import android.accessibilityservice.AccessibilityService
 import android.annotation.SuppressLint
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.PixelFormat
@@ -46,9 +48,32 @@ class FloatingMenuService : AccessibilityService() {
     private var isShuttingDown = false
     private var lastDismissUptime = 0L
 
+    private val triggerReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            Log.d("FloatingBackService", "onReceive() ${intent.action}")
+            if (intent.action == MenuContract.ACTION_SHOW_MENU) {
+                if (Settings.canDrawOverlays(this@FloatingMenuService)) {
+                    showFloatingMenu()
+                    vibrate()
+                } else {
+                    // Optionally notify/toast that overlay permission is needed
+                }
+            }
+        }
+    }
+
     override fun onServiceConnected() {
         Log.d("FloatingBackService", "onServiceConnected()")
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            registerReceiver(triggerReceiver, IntentFilter(MenuContract.ACTION_SHOW_MENU),
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    RECEIVER_NOT_EXPORTED  // or RECEIVER_EXPORTED if needed
+                } else {
+                    TODO("VERSION.SDK_INT < TIRAMISU")
+                }
+            )
+        }
         if (!Settings.canDrawOverlays(this)) {
             Log.e("FloatingBackService", "Overlay permission not granted")
             // Optionally: launch an activity to request it.
@@ -56,7 +81,7 @@ class FloatingMenuService : AccessibilityService() {
         }
 
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-        showFloatingMenu()
+        // showFloatingMenu()
 
         vibrate()
     }
@@ -157,7 +182,7 @@ class FloatingMenuService : AccessibilityService() {
                     val inside = x in hit[0]..(hit[0] + menu.width) &&
                             y in hit[1]..(hit[1] + menu.height)
                     if (!inside) {
-                        dismissOverlay(disableService = true)
+                        dismissOverlay(disableService = false)
                         true // consume
                     } else false
                 }
@@ -191,7 +216,7 @@ class FloatingMenuService : AccessibilityService() {
         ) {
             performGlobalAction(GLOBAL_ACTION_HOME)
             vibrate()
-            disableSelf()
+            dismissOverlay(disableService = false)
         }
 
         bindItem(
@@ -201,7 +226,7 @@ class FloatingMenuService : AccessibilityService() {
         ) {
             performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
             vibrate()
-            disableSelf()
+            dismissOverlay(disableService = false)
         }
 
         bindItem(
@@ -213,7 +238,7 @@ class FloatingMenuService : AccessibilityService() {
                 performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
             }
             vibrate()
-            disableSelf()
+            dismissOverlay(disableService = false)
         }
 
         bindItem(
@@ -225,7 +250,7 @@ class FloatingMenuService : AccessibilityService() {
                 performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT)
             }
             vibrate()
-            disableSelf()
+            dismissOverlay(disableService = false)
         }
 
         tintIcon(
@@ -404,6 +429,7 @@ class FloatingMenuService : AccessibilityService() {
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
+        runCatching { unregisterReceiver(triggerReceiver) }
         removeFloatingMenu()
         return super.onUnbind(intent)
     }
