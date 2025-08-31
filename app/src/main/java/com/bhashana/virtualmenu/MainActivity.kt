@@ -1,30 +1,46 @@
 package com.bhashana.virtualmenu
 
+import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.os.Bundle
 import android.provider.Settings
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -36,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import com.bhashana.virtualmenu.ui.theme.VirtualBackTheme
+import androidx.core.content.edit
 
 class MainActivity : ComponentActivity() {
 
@@ -45,6 +62,12 @@ class MainActivity : ComponentActivity() {
         com.google.android.material.color.DynamicColors.applyToActivitiesIfAvailable(this.application)
 
         enableEdgeToEdge()
+
+        // --- Debug log current prefs ---
+        val prefs = getSharedPreferences(BUTTON_TYPE_PREFS, MODE_PRIVATE)
+        val triggerMode = prefs.getString(KEY_TRIGGER_MODE, "accessibility")
+        Log.d("MainActivity", "Current trigger mode preference = $triggerMode")
+
         setContent {
             VirtualBackTheme {
                 // Use a Surface to set the app background to the theme surface color
@@ -93,7 +116,115 @@ fun SoftGlowBackground(
 }
 
 @Composable
+fun TriggerModeSelector(
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences(BUTTON_TYPE_PREFS, Context.MODE_PRIVATE) }
+
+    // Read once when composed; default to Accessibility
+    var selected by rememberSaveable {
+        mutableStateOf(
+            when (prefs.getString(KEY_TRIGGER_MODE, "accessibility")) {
+                "overlay" -> TriggerMode.OVERLAY
+                else -> TriggerMode.ACCESSIBILITY
+            }
+        )
+    }
+
+    // Persist whenever selection changes
+    LaunchedEffect(selected) {
+        prefs.edit {
+            putString(
+                KEY_TRIGGER_MODE,
+                if (selected == TriggerMode.OVERLAY) "overlay" else "accessibility"
+            )
+        } // async, non-blocking
+    }
+
+    Column(modifier) {
+        Text("Activation method", style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(8.dp))
+
+        RadioRow(
+            text = "Accessibility Button",
+            selected = selected == TriggerMode.ACCESSIBILITY,
+        ) { selected = TriggerMode.ACCESSIBILITY }
+
+        RadioRow(
+            text = "Floating overlay button",
+            selected = selected == TriggerMode.OVERLAY,
+        ) { selected = TriggerMode.OVERLAY }
+    }
+}
+
+@Composable
+private fun RadioRow(
+    text: String,
+    selected: Boolean,
+    onSelect: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onSelect)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(selected = selected, onClick = onSelect)
+        Text(text, modifier = Modifier.padding(start = 8.dp))
+    }
+}
+
+// Helper to read current mode from prefs
+private fun readTriggerMode(prefs: SharedPreferences): TriggerMode =
+    when (prefs.getString(KEY_TRIGGER_MODE, "accessibility")) {
+        "overlay" -> TriggerMode.OVERLAY
+        else -> TriggerMode.ACCESSIBILITY
+    }
+
+@Composable
 private fun MainContent() {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences(BUTTON_TYPE_PREFS, Context.MODE_PRIVATE) }
+
+    // 1) Observe preference changes (incl. initial value)
+    val triggerModeState = remember { mutableStateOf(readTriggerMode(prefs)) }
+
+    DisposableEffect(prefs) {
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == KEY_TRIGGER_MODE) {
+                triggerModeState.value = readTriggerMode(prefs)
+            }
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
+
+    // 2) React to preference: start/stop overlay service
+    LaunchedEffect(triggerModeState.value) {
+        when (triggerModeState.value) {
+            TriggerMode.OVERLAY -> {
+                if (Settings.canDrawOverlays(context)) {
+                    val start = Intent(context, TriggerOverlayService::class.java)
+                        .setAction(MenuContract.ACTION_START_OVERLAY)
+                    ContextCompat.startForegroundService(context, start)
+                    Log.d("MainContent", "Overlay service START requested")
+                } else {
+                    Toast.makeText(context, "Overlay permission required", Toast.LENGTH_SHORT).show()
+                }
+            }
+TriggerMode.ACCESSIBILITY -> {
+    // Tell the service to tear down and stop
+    val stop = Intent(context, TriggerOverlayService::class.java)
+        .setAction(MenuContract.ACTION_STOP_OVERLAY)
+    context.startService(stop) // safe: service will handle STOP action
+    Log.d("MainContent", "Overlay service STOP requested")
+}
+        }
+    }
+
     Box(Modifier.fillMaxSize()) {
         SoftGlowBackground(
             modifier = Modifier.fillMaxSize(),
@@ -117,6 +248,12 @@ private fun MainContent() {
                     verticalArrangement = Arrangement.Center
                 ) {
                     Greeting()
+                    Spacer(Modifier.height(20.dp))
+
+                    TriggerModeSelector(
+                        modifier = Modifier
+                            .width(260.dp) // optional width to align with buttons
+                    )
 
                     Spacer(Modifier.height(16.dp))
 
@@ -167,6 +304,7 @@ private fun MainContent() {
                         )
                     }
 
+                    val overlaySelected = triggerModeState.value == TriggerMode.OVERLAY
                     Button(
                         onClick = {
                             if (!Settings.canDrawOverlays(context)) {
@@ -187,6 +325,7 @@ private fun MainContent() {
                             Toast.makeText(context, "Floating button enabled", Toast.LENGTH_SHORT)
                                 .show()
                         },
+                        enabled = overlaySelected, // disabled if Accessibility mode
                         modifier = Modifier.width(220.dp)
                     ) {
                         Text("Enable Floating Button", textAlign = TextAlign.Center)
