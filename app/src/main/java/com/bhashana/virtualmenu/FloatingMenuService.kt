@@ -47,6 +47,7 @@ class FloatingMenuService : AccessibilityService() {
     private var overlayView: View? = null
     private var isShuttingDown = false
     private var lastDismissUptime = 0L
+    private var triggerMode: String? = "accessibility"
 
     private val triggerReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -65,15 +66,6 @@ class FloatingMenuService : AccessibilityService() {
     override fun onServiceConnected() {
         Log.d("FloatingBackService", "onServiceConnected()")
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            registerReceiver(triggerReceiver, IntentFilter(MenuContract.ACTION_SHOW_MENU),
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    RECEIVER_NOT_EXPORTED  // or RECEIVER_EXPORTED if needed
-                } else {
-                    TODO("VERSION.SDK_INT < TIRAMISU")
-                }
-            )
-        }
         if (!Settings.canDrawOverlays(this)) {
             Log.e("FloatingBackService", "Overlay permission not granted")
             // Optionally: launch an activity to request it.
@@ -81,7 +73,26 @@ class FloatingMenuService : AccessibilityService() {
         }
 
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-        // showFloatingMenu()
+
+        val prefs = getSharedPreferences(BUTTON_TYPE_PREFS, MODE_PRIVATE)
+        triggerMode = prefs.getString(KEY_TRIGGER_MODE, "accessibility")
+        if (triggerMode == "accessibility") {
+            showFloatingMenu()
+        } else {
+            val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                RECEIVER_NOT_EXPORTED
+            } else {
+                0
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                registerReceiver(
+                    triggerReceiver,
+                    IntentFilter(MenuContract.ACTION_SHOW_MENU),
+                    flags
+                )
+            }
+        }
 
         vibrate()
     }
@@ -182,7 +193,7 @@ class FloatingMenuService : AccessibilityService() {
                     val inside = x in hit[0]..(hit[0] + menu.width) &&
                             y in hit[1]..(hit[1] + menu.height)
                     if (!inside) {
-                        dismissOverlay(disableService = false)
+                        dismissOverlay(disableService = (triggerMode == "accessibility"))
                         true // consume
                     } else false
                 }
@@ -216,7 +227,7 @@ class FloatingMenuService : AccessibilityService() {
         ) {
             performGlobalAction(GLOBAL_ACTION_HOME)
             vibrate()
-            dismissOverlay(disableService = false)
+            dismissOverlay(disableService = (triggerMode == "accessibility"))
         }
 
         bindItem(
@@ -226,7 +237,7 @@ class FloatingMenuService : AccessibilityService() {
         ) {
             performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
             vibrate()
-            dismissOverlay(disableService = false)
+            dismissOverlay(disableService = (triggerMode == "accessibility"))
         }
 
         bindItem(
@@ -238,7 +249,7 @@ class FloatingMenuService : AccessibilityService() {
                 performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
             }
             vibrate()
-            dismissOverlay(disableService = false)
+            dismissOverlay(disableService = (triggerMode == "accessibility"))
         }
 
         bindItem(
@@ -250,7 +261,7 @@ class FloatingMenuService : AccessibilityService() {
                 performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT)
             }
             vibrate()
-            dismissOverlay(disableService = false)
+            dismissOverlay(disableService = (triggerMode == "accessibility"))
         }
 
         tintIcon(
@@ -303,7 +314,7 @@ class FloatingMenuService : AccessibilityService() {
     }
 
     private fun Context.hasSavedPosition(suf: String): Boolean {
-        val prefs = getSharedPreferences("overlay_prefs", MODE_PRIVATE)
+        val prefs = getSharedPreferences(OVERLAY_MENU_PREFS, MODE_PRIVATE)
         return prefs.contains("overlay_x_$suf") && prefs.contains("overlay_y_$suf")
     }
 
@@ -325,7 +336,7 @@ class FloatingMenuService : AccessibilityService() {
     private fun Context.isLandscape(): Boolean =
         resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-    private fun dismissOverlay(disableService: Boolean = false, deferMs: Long = 120L) {
+    private fun dismissOverlay(disableService: Boolean = (triggerMode == "accessibility"), deferMs: Long = 120L) {
         overlayView?.let { v ->
             try {
                 windowManager.removeViewImmediate(v)
@@ -410,11 +421,11 @@ class FloatingMenuService : AccessibilityService() {
 
     // Tiny helpers for persistence
     private fun Context.saveInt(key: String, value: Int) {
-        getSharedPreferences("overlay_prefs", MODE_PRIVATE).edit { putInt(key, value) }
+        getSharedPreferences(OVERLAY_MENU_PREFS, MODE_PRIVATE).edit { putInt(key, value) }
     }
 
     private fun Context.loadInt(key: String, def: Int) =
-        getSharedPreferences("overlay_prefs", MODE_PRIVATE).getInt(key, def)
+        getSharedPreferences(OVERLAY_MENU_PREFS, MODE_PRIVATE).getInt(key, def)
 
 
     private fun removeFloatingMenu() {
