@@ -1,5 +1,6 @@
-package com.bhashana.virtualmenu
+package com.bhashana.virtualmenu.services
 
+import android.R
 import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
@@ -10,6 +11,7 @@ import android.graphics.Color
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
+import android.provider.Settings
 import android.util.Log
 import android.view.Gravity
 import android.view.MotionEvent
@@ -17,6 +19,7 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.ImageView
 import androidx.core.app.NotificationCompat
+import com.bhashana.virtualmenu.MenuContract
 import kotlin.math.abs
 
 class TriggerOverlayService : Service() {
@@ -28,6 +31,13 @@ class TriggerOverlayService : Service() {
         super.onCreate()
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
         startForeground(1, overlayNotification())
+
+        if (!Settings.canDrawOverlays(this)) {
+            Log.e("FloatingBackService", "Overlay permission not granted")
+            // Optionally: launch an activity to request it.
+            return
+        }
+
         addBubble()
     }
 
@@ -48,26 +58,28 @@ class TriggerOverlayService : Service() {
     private fun overlayNotification(): Notification {
         val channelId = "axio_overlay"
         val mgr = getSystemService(NotificationManager::class.java)
-        if (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                mgr.getNotificationChannel(channelId) == null
-            } else {
-                TODO("VERSION.SDK_INT < O")
-            }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            mgr.getNotificationChannel(channelId) == null
         ) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                mgr.createNotificationChannel(
-                    NotificationChannel(
-                        channelId,
-                        "Axio overlay",
-                        NotificationManager.IMPORTANCE_MIN
-                    )
-                )
+            val channel = NotificationChannel(
+                channelId,
+                "Axio overlay",
+                NotificationManager.IMPORTANCE_MIN
+            ).apply {
+                setShowBadge(false) // overlays don’t need a badge
+                lockscreenVisibility = Notification.VISIBILITY_SECRET
             }
+            mgr.createNotificationChannel(channel)
         }
+
         return NotificationCompat.Builder(this, channelId)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.drawable.ic_dialog_info)
             .setContentTitle("Axio floating button is on")
+            .setCategory(Notification.CATEGORY_SERVICE)
+            .setPriority(NotificationCompat.PRIORITY_MIN) // helps below O
             .setOngoing(true)
+            .setShowWhen(false)
             .build()
     }
 
@@ -88,7 +100,7 @@ class TriggerOverlayService : Service() {
         }
 
         val iv = ImageView(this).apply {
-            setImageResource(R.drawable.ic_launcher_foreground_axio) // 48dp circular asset
+            setImageResource(com.bhashana.virtualmenu.R.drawable.ic_launcher_foreground_axio) // 48dp circular asset
             setOnClickListener {
                 // Ask the accessibility service (if enabled) to show the menu
                 Log.d("TriggerOverlayService", "show menu")
@@ -136,4 +148,3 @@ class TriggerOverlayService : Service() {
         bubble = iv
     }
 }
-

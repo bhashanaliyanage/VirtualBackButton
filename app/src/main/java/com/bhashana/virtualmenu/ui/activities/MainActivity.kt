@@ -1,16 +1,20 @@
-package com.bhashana.virtualmenu
+package com.bhashana.virtualmenu.ui.activities
 
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.content.res.Configuration
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
+import android.view.LayoutInflater
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,6 +26,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -49,17 +55,25 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
-import androidx.core.net.toUri
-import com.bhashana.virtualmenu.ui.theme.VirtualBackTheme
 import androidx.core.content.edit
+import androidx.core.net.toUri
+import com.bhashana.virtualmenu.BUTTON_TYPE_PREFS
+import com.bhashana.virtualmenu.KEY_TRIGGER_MODE
+import com.bhashana.virtualmenu.MenuContract
+import com.bhashana.virtualmenu.R
+import com.bhashana.virtualmenu.TriggerMode
+import com.bhashana.virtualmenu.services.TriggerOverlayService
+import com.bhashana.virtualmenu.ui.theme.VirtualBackTheme
+import com.google.android.material.color.DynamicColors
 
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        com.google.android.material.color.DynamicColors.applyToActivitiesIfAvailable(this.application)
+        DynamicColors.applyToActivitiesIfAvailable(this.application)
 
         enableEdgeToEdge()
 
@@ -73,6 +87,7 @@ class MainActivity : ComponentActivity() {
                 // Use a Surface to set the app background to the theme surface color
                 Surface(color = MaterialTheme.colorScheme.surface) {
                     MainContent()
+                    // MainScreen()
                 }
             }
         }
@@ -82,6 +97,98 @@ class MainActivity : ComponentActivity() {
         super.onResume()
     }
 
+}
+
+@Composable
+fun MainScreen(
+    modifier: Modifier = Modifier,
+) {
+    // State to switch between menu vs config
+    var showConfig by remember { mutableStateOf(false) }
+
+    Box(Modifier.fillMaxSize()) {
+        SoftGlowBackground(
+            modifier = Modifier.fillMaxSize(),
+            glowColor = Color.White.copy(alpha = 0.075f),  // subtler
+            centerBias = 0f to 0.4f,                  // move highlight
+            radiusFactor = 0.9f
+        )
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            containerColor = Color.Transparent,
+            contentColor = MaterialTheme.colorScheme.onSurface
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                // --- Top content ---
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp, end = 16.dp, bottom = 16.dp) // margin-like spacing
+                ) {
+                    Button(
+                        onClick = { /* TODO */ },
+                        modifier = Modifier
+                            .wrapContentWidth()
+                            .align(Alignment.CenterEnd)  // <-- Move align here
+                    ) {
+                        Text("Service Status: Unknown")
+                    }
+                }
+
+                // --- Middle content ---
+                if (!showConfig) {
+                    AndroidView(
+                        modifier = Modifier
+                            .wrapContentWidth()
+                            .wrapContentHeight()
+                            .weight(1f)
+                            .align(Alignment.CenterHorizontally), // take available space
+                        factory = { context ->
+                            LayoutInflater.from(context)
+                                .inflate(R.layout.floating_menu, null, false)
+                        }
+                    )
+                } else {
+                    // Placeholder for configuration layout
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .background(
+                                MaterialTheme.colorScheme.surfaceVariant,
+                                RoundedCornerShape(16.dp)
+                            )
+                            .padding(24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("Configuration Layout Goes Here")
+                    }
+                }
+
+                if (!showConfig) {// --- Bottom content ---
+                    Button(
+                        onClick = { showConfig = !showConfig },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(96.dp)
+                            .padding(bottom = 16.dp, top = 16.dp, start = 16.dp, end = 16.dp),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Text(
+                            if (showConfig) "Back to Menu"
+                            else "Tap to Configure Button Type",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -120,7 +227,8 @@ fun TriggerModeSelector(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences(BUTTON_TYPE_PREFS, Context.MODE_PRIVATE) }
+    val prefs =
+        remember { context.getSharedPreferences(BUTTON_TYPE_PREFS, Context.MODE_PRIVATE) }
 
     // Read once when composed; default to Accessibility
     var selected by rememberSaveable {
@@ -187,7 +295,8 @@ private fun readTriggerMode(prefs: SharedPreferences): TriggerMode =
 @Composable
 private fun MainContent() {
     val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences(BUTTON_TYPE_PREFS, Context.MODE_PRIVATE) }
+    val prefs =
+        remember { context.getSharedPreferences(BUTTON_TYPE_PREFS, Context.MODE_PRIVATE) }
 
     // 1) Observe preference changes (incl. initial value)
     val triggerModeState = remember { mutableStateOf(readTriggerMode(prefs)) }
@@ -212,16 +321,18 @@ private fun MainContent() {
                     ContextCompat.startForegroundService(context, start)
                     Log.d("MainContent", "Overlay service START requested")
                 } else {
-                    Toast.makeText(context, "Overlay permission required", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Overlay permission required", Toast.LENGTH_SHORT)
+                        .show()
                 }
             }
-TriggerMode.ACCESSIBILITY -> {
-    // Tell the service to tear down and stop
-    val stop = Intent(context, TriggerOverlayService::class.java)
-        .setAction(MenuContract.ACTION_STOP_OVERLAY)
-    context.startService(stop) // safe: service will handle STOP action
-    Log.d("MainContent", "Overlay service STOP requested")
-}
+
+            TriggerMode.ACCESSIBILITY -> {
+                // Tell the service to tear down and stop
+                val stop = Intent(context, TriggerOverlayService::class.java)
+                    .setAction(MenuContract.ACTION_STOP_OVERLAY)
+                context.startService(stop) // safe: service will handle STOP action
+                Log.d("MainContent", "Overlay service STOP requested")
+            }
         }
     }
 
@@ -322,7 +433,11 @@ TriggerMode.ACCESSIBILITY -> {
                             // Start (or re-start) foreground overlay
                             ContextCompat.startForegroundService(context, start)
 
-                            Toast.makeText(context, "Floating button enabled", Toast.LENGTH_SHORT)
+                            Toast.makeText(
+                                context,
+                                "Floating button enabled",
+                                Toast.LENGTH_SHORT
+                            )
                                 .show()
                         },
                         enabled = overlaySelected, // disabled if Accessibility mode
@@ -362,7 +477,7 @@ fun GreetingPreview() {
 @Preview(
     name = "Dark Mode",
     showSystemUi = true,
-    uiMode = android.content.res.Configuration.UI_MODE_NIGHT_YES
+    uiMode = Configuration.UI_MODE_NIGHT_YES
 )
 @Composable
 fun GreetingPreviewDark() {

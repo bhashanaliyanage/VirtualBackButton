@@ -16,7 +16,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.VirtualBack">
         <activity
-            android:name=".MainActivity"
+            android:name=".ui.activities.MainActivity"
             android:exported="true"
             android:theme="@style/Theme.VirtualBack">
             <intent-filter>
@@ -26,12 +26,12 @@
         </activity>
 
         <service
-            android:name=".TriggerOverlayService"
+            android:name=".services.TriggerOverlayService"
             android:exported="false"
             android:foregroundServiceType="specialUse"/> <!-- or omit -->
 
         <service
-            android:name=".FloatingMenuService"
+            android:name=".services.FloatingMenuService"
             android:exported="true"
             android:label="@string/as_menu_label"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">

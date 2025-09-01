@@ -1,4 +1,4 @@
-package com.bhashana.virtualmenu
+package com.bhashana.virtualmenu.services
 
 import android.accessibilityservice.AccessibilityService
 import android.annotation.SuppressLint
@@ -36,6 +36,11 @@ import androidx.core.graphics.component1
 import androidx.core.graphics.component2
 import androidx.core.view.ViewCompat
 import androidx.core.widget.ImageViewCompat
+import com.bhashana.virtualmenu.BUTTON_TYPE_PREFS
+import com.bhashana.virtualmenu.KEY_TRIGGER_MODE
+import com.bhashana.virtualmenu.MenuContract
+import com.bhashana.virtualmenu.OVERLAY_MENU_PREFS
+import com.bhashana.virtualmenu.R
 import com.google.android.material.color.DynamicColors
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.shape.MaterialShapeDrawable
