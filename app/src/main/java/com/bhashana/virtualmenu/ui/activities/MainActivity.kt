@@ -12,9 +12,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -55,6 +53,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
@@ -86,8 +85,8 @@ class MainActivity : ComponentActivity() {
             VirtualBackTheme {
                 // Use a Surface to set the app background to the theme surface color
                 Surface(color = MaterialTheme.colorScheme.surface) {
-                    MainContent()
-                    // MainScreen()
+                     MainContent()
+//                    MainScreen()
                 }
             }
         }
@@ -100,9 +99,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun MainScreen(
-    modifier: Modifier = Modifier,
-) {
+fun MainScreen() {
     // State to switch between menu vs config
     var showConfig by remember { mutableStateOf(false) }
 
@@ -140,56 +137,188 @@ fun MainScreen(
                     }
                 }
 
-                // --- Middle content ---
-                if (!showConfig) {
+                // --- Middle content container ---
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentAlignment = Alignment.Center // Center middle content vertically
+                ) {
                     AndroidView(
                         modifier = Modifier
                             .wrapContentWidth()
-                            .wrapContentHeight()
-                            .weight(1f)
-                            .align(Alignment.CenterHorizontally), // take available space
+                            .wrapContentHeight(),
                         factory = { context ->
                             LayoutInflater.from(context)
                                 .inflate(R.layout.floating_menu, null, false)
                         }
                     )
+                }
+
+                if (!showConfig) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(),
+                        contentAlignment = Alignment.BottomCenter
+                    ) {
+                        Button(
+                            onClick = { showConfig = !showConfig },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(32.dp),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier.height(72.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    "Tap to Configure Button Type",
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                            }
+                        }
+                    }
                 } else {
-                    // Placeholder for configuration layout
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .weight(1f)
-                            .background(
-                                MaterialTheme.colorScheme.surfaceVariant,
-                                RoundedCornerShape(16.dp)
-                            )
-                            .padding(24.dp),
-                        contentAlignment = Alignment.Center
+                            .wrapContentHeight()
+                            .weight(1f),
+                        contentAlignment = Alignment.BottomCenter
                     ) {
-                        Text("Configuration Layout Goes Here")
-                    }
-                }
-
-                if (!showConfig) {// --- Bottom content ---
-                    Button(
-                        onClick = { showConfig = !showConfig },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(96.dp)
-                            .padding(bottom = 16.dp, top = 16.dp, start = 16.dp, end = 16.dp),
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Text(
-                            if (showConfig) "Back to Menu"
-                            else "Tap to Configure Button Type",
-                            style = MaterialTheme.typography.titleMedium
-                        )
+                        Box(
+                            modifier = Modifier
+                                .wrapContentHeight()
+                                .padding(24.dp)
+                                /*.background(
+                                    MaterialTheme.colorScheme.surfaceVariant,
+                                    RoundedCornerShape(16.dp)
+                                )*/,
+                            contentAlignment = Alignment.Center
+                        ) {
+                            // Text("Configuration Layout Goes Here")
+                            ConfigurationLayout { }
+                        }
                     }
                 }
             }
         }
     }
 }
+
+@Composable
+fun ConfigurationLayout(
+    modifier: Modifier = Modifier,
+    onEnablePermissionsClick: () -> Unit
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(
+                MaterialTheme.colorScheme.surfaceVariant,
+                shape = RoundedCornerShape(32.dp)
+            )
+            .wrapContentHeight()
+            .padding(horizontal = 4.dp),
+        horizontalAlignment = Alignment.Start
+    ) {
+        Spacer(Modifier.height(16.dp))
+        // Title
+        Text(
+            text = "Choose button type",
+            style = MaterialTheme.typography.titleLarge, fontSize = 28.sp,
+            modifier = Modifier.padding(top = 24.dp, start = 24.dp)
+        )
+
+        Spacer(Modifier.height(12.dp))
+
+        // Trigger mode selector
+        TriggerModeSelector(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 12.dp, end = 12.dp)
+        )
+
+        // Enable permissions button
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterHorizontally)
+        ) {
+            Button(
+                onClick = onEnablePermissionsClick
+            ) {
+                Text("Enable permissions")
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        // Tip text
+        Box(
+            modifier = Modifier
+                .padding(bottom = 12.dp, start = 32.dp, end = 32.dp)
+                .align(Alignment.CenterHorizontally)
+        ) {
+            Text(
+                text = "*tip: we recommend using the accessibility button if it’s available on your device for faster, smoother and less battery usage".trimIndent(),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                fontSize = 12.sp
+            )
+        }
+
+        Spacer(Modifier.height(16.dp))
+    }
+}
+
+@Composable
+fun TriggerModeSelector(
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val prefs =
+        remember { context.getSharedPreferences(BUTTON_TYPE_PREFS, Context.MODE_PRIVATE) }
+
+    // Read once when composed; default to Accessibility
+    var selected by rememberSaveable {
+        mutableStateOf(
+            when (prefs.getString(KEY_TRIGGER_MODE, "accessibility")) {
+                "overlay" -> TriggerMode.OVERLAY
+                else -> TriggerMode.ACCESSIBILITY
+            }
+        )
+    }
+
+    // Persist whenever selection changes
+    LaunchedEffect(selected) {
+        val selection = if (selected == TriggerMode.OVERLAY) "overlay" else "accessibility"
+        prefs.edit {
+            putString(
+                KEY_TRIGGER_MODE,
+                selection
+            )
+        } // async, non-blocking
+        Log.d("MainActivity", "Selection: $selection")
+    }
+
+    Column(
+        modifier,
+        verticalArrangement = Arrangement.spacedBy((-16).dp)
+    ) {
+        RadioRow(
+            text = "Accessibility Button (Less battery usage)",
+            selected = selected == TriggerMode.ACCESSIBILITY,
+        ) { selected = TriggerMode.ACCESSIBILITY }
+
+        RadioRow(
+            text = "Floating overlay button (Regular)",
+            selected = selected == TriggerMode.OVERLAY,
+        ) { selected = TriggerMode.OVERLAY }
+    }
+}
+
 
 @Composable
 fun SoftGlowBackground(
@@ -220,50 +349,6 @@ fun SoftGlowBackground(
                 }
             }
     )
-}
-
-@Composable
-fun TriggerModeSelector(
-    modifier: Modifier = Modifier
-) {
-    val context = LocalContext.current
-    val prefs =
-        remember { context.getSharedPreferences(BUTTON_TYPE_PREFS, Context.MODE_PRIVATE) }
-
-    // Read once when composed; default to Accessibility
-    var selected by rememberSaveable {
-        mutableStateOf(
-            when (prefs.getString(KEY_TRIGGER_MODE, "accessibility")) {
-                "overlay" -> TriggerMode.OVERLAY
-                else -> TriggerMode.ACCESSIBILITY
-            }
-        )
-    }
-
-    // Persist whenever selection changes
-    LaunchedEffect(selected) {
-        prefs.edit {
-            putString(
-                KEY_TRIGGER_MODE,
-                if (selected == TriggerMode.OVERLAY) "overlay" else "accessibility"
-            )
-        } // async, non-blocking
-    }
-
-    Column(modifier) {
-        Text("Activation method", style = MaterialTheme.typography.titleMedium)
-        Spacer(Modifier.height(8.dp))
-
-        RadioRow(
-            text = "Accessibility Button",
-            selected = selected == TriggerMode.ACCESSIBILITY,
-        ) { selected = TriggerMode.ACCESSIBILITY }
-
-        RadioRow(
-            text = "Floating overlay button",
-            selected = selected == TriggerMode.OVERLAY,
-        ) { selected = TriggerMode.OVERLAY }
-    }
 }
 
 @Composable
@@ -469,7 +554,7 @@ fun Greeting(modifier: Modifier = Modifier) {
 fun GreetingPreview() {
     VirtualBackTheme {
         Surface(color = MaterialTheme.colorScheme.surface) {
-            MainContent()
+            ConfigurationLayout { }
         }
     }
 }
@@ -483,7 +568,7 @@ fun GreetingPreview() {
 fun GreetingPreviewDark() {
     VirtualBackTheme {
         Surface(color = MaterialTheme.colorScheme.surface) {
-            MainContent()
+            ConfigurationLayout { }
         }
     }
 }
