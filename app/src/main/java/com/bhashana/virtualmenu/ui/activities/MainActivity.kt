@@ -3,13 +3,16 @@ package com.bhashana.virtualmenu.ui.activities
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -25,15 +28,20 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
+import androidx.compose.material3.DividerDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
@@ -55,6 +63,7 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -63,7 +72,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
+import androidx.core.graphics.ColorUtils
 import androidx.core.net.toUri
+import androidx.core.view.ViewCompat
+import androidx.core.widget.ImageViewCompat
 import com.bhashana.virtualmenu.BUTTON_TYPE_PREFS
 import com.bhashana.virtualmenu.KEY_TRIGGER_MODE
 import com.bhashana.virtualmenu.MenuContract
@@ -72,6 +84,8 @@ import com.bhashana.virtualmenu.TriggerMode
 import com.bhashana.virtualmenu.services.TriggerOverlayService
 import com.bhashana.virtualmenu.ui.theme.VirtualBackTheme
 import com.google.android.material.color.DynamicColors
+import com.google.android.material.color.MaterialColors
+import com.google.android.material.shape.MaterialShapeDrawable
 
 class MainActivity : ComponentActivity() {
 
@@ -91,8 +105,8 @@ class MainActivity : ComponentActivity() {
             VirtualBackTheme {
                 // Use a Surface to set the app background to the theme surface color
                 Surface(color = MaterialTheme.colorScheme.surface) {
-                    MainContent()
-                    // MainScreen()
+                    // MainContent()
+                    MainScreen()
                 }
             }
         }
@@ -122,7 +136,7 @@ fun MainScreen() {
     Box(Modifier.fillMaxSize()) {
         SoftGlowBackground(
             modifier = Modifier.fillMaxSize(),
-            glowColor = Color.White.copy(alpha = 0.075f),
+            /*glowColor = Color.White.copy(alpha = 0.075f),*/
             centerBias = 0f to 0.4f,
             radiusFactor = 0.9f
         )
@@ -161,23 +175,43 @@ fun MainScreen() {
                     contentAlignment = Alignment.Center
                 ) {
                     AndroidView(
-                        modifier = Modifier.wrapContentWidth().wrapContentHeight(),
+                        modifier = Modifier
+                            .wrapContentWidth()
+                            .wrapContentHeight(),
                         factory = { ctx ->
-                            // Create a real parent container…
+                            // Create container
                             FrameLayout(ctx).apply {
-                                // If you want the XML root’s match_parent etc. to matter,
-                                // give this container sensible LayoutParams:
                                 layoutParams = FrameLayout.LayoutParams(
                                     ViewGroup.LayoutParams.WRAP_CONTENT,
                                     ViewGroup.LayoutParams.WRAP_CONTENT
                                 )
 
-                                // …and inflate INTO it (attachToRoot = true)
-                                LayoutInflater.from(ctx).inflate(
+                                // Inflate the menu
+                                val menu = LayoutInflater.from(ctx).inflate(
                                     R.layout.floating_menu,
-                                    this,      // <-- parent
-                                    true       // <-- attachToRoot so layoutParams are applied
+                                    this,
+                                    true
                                 )
+
+                                // Apply the MaterialShapeDrawable background to the root view
+                                val shapeDrawable = MaterialShapeDrawable().apply {
+                                    initializeElevationOverlay(ctx)
+                                    setCornerSize(32f)
+                                    fillColor = ColorStateList.valueOf(
+                                        ColorUtils.setAlphaComponent(
+                                            MaterialColors.getColor(
+                                                menu, com.google.android.material.R.attr.colorSurface
+                                            ),
+                                            (0.9f * 255).toInt()
+                                        )
+                                    )
+                                    elevation = ViewCompat.getElevation(menu)
+                                }
+
+                                // Assign background to the container (or to `menu` if you prefer)
+                                this.background = shapeDrawable
+
+                                tintIcon(menu, R.id.logo, com.google.android.material.R.attr.colorOnSurface)
                             }
                         }
                     )
@@ -250,6 +284,12 @@ fun MainScreen() {
     }
 }
 
+private fun tintIcon(view: View, iconId: Int, attr: Int) {
+    val iv = view.findViewById<ImageView>(iconId)
+    val color = MaterialColors.getColor(iv, attr)
+    ImageViewCompat.setImageTintList(iv, ColorStateList.valueOf(color))
+}
+
 
 /**
  * Non-overlay "page 1 of 2" card that lives in the bottom area.
@@ -279,7 +319,13 @@ private fun OverlayPermissionCard(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onBack) {
+            IconButton(
+                onClick = onBack,
+                colors = IconButtonDefaults.iconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), // background
+                    contentColor = if (MaterialTheme.colorScheme.onPrimary.luminance() > 0.5f) Color.Black else Color.White
+                )
+            ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Back"
@@ -295,12 +341,7 @@ private fun OverlayPermissionCard(
 
         // Row 2: "1 of 2"
         Spacer(Modifier.height(2.dp))
-        Text(
-            text = "1 of 2",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 16.dp)
-        )
+        StepIndicator(currentStep = 1, totalSteps = 2)
 
         // Row 3: Section title + body
         Spacer(Modifier.height(20.dp))
@@ -341,6 +382,54 @@ private fun OverlayPermissionCard(
         }
     }
 }
+
+@Composable
+fun StepIndicator(
+    currentStep: Int,
+    totalSteps: Int
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        repeat(totalSteps) { index ->
+            val stepNumber = index + 1
+            val isActive = stepNumber == currentStep
+
+            Surface(
+                shape =         CircleShape,
+                color =         if (isActive) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                contentColor =  if (isActive) MaterialTheme.colorScheme.onPrimary
+                                    else if (MaterialTheme.colorScheme.onPrimary.luminance() > 0.5f) Color.Black else Color.White,
+                modifier =      Modifier.size(32.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = stepNumber.toString(),
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
+            }
+
+            if (stepNumber < totalSteps) {
+                fun spacerWidth(): Int = 4
+
+                Spacer(modifier = Modifier.width(spacerWidth().dp))
+                HorizontalDivider(
+                    modifier = Modifier
+                        .width(48.dp)
+                        .height(1.dp)
+                        .align(Alignment.CenterVertically),
+                    thickness = DividerDefaults.Thickness, color = MaterialTheme.colorScheme.outline
+                )
+                Spacer(modifier = Modifier.width(spacerWidth().dp))
+            }
+        }
+    }
+}
+
 
 @Composable
 fun ConfigurationLayout(
@@ -458,8 +547,8 @@ fun TriggerModeSelector(
 @Composable
 fun SoftGlowBackground(
     modifier: Modifier = Modifier,
-    bg: Color = Color(0xFF222222), // #222222
-    glowColor: Color = Color.White.copy(alpha = 0.12f), // tweak intensity
+    bg: Color = MaterialTheme.colorScheme.background,
+    glowColor: Color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f), // tweak intensity
     centerBias: Pair<Float, Float> = 0.7f to 0.3f,      // x,y as fraction of size
     radiusFactor: Float = 0.65f                          // fraction of min(size)
 ) {
