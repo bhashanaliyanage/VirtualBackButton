@@ -37,6 +37,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonColors
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DividerDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -161,60 +163,68 @@ fun MainScreen() {
                         onClick = { /* TODO */ },
                         modifier = Modifier
                             .wrapContentWidth()
-                            .align(Alignment.CenterEnd)
+                            .align(Alignment.CenterEnd),
+                        colors = buttonColors()
                     ) {
                         Text("Service Status: Unknown")
                     }
                 }
 
                 // --- Middle content (ALWAYS visible) ---
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    contentAlignment = Alignment.Center
-                ) {
-                    AndroidView(
+                if (bottomPage != BottomPage.OverlayPerm) {
+                    Box(
                         modifier = Modifier
-                            .wrapContentWidth()
-                            .wrapContentHeight(),
-                        factory = { ctx ->
-                            // Create container
-                            FrameLayout(ctx).apply {
-                                layoutParams = FrameLayout.LayoutParams(
-                                    ViewGroup.LayoutParams.WRAP_CONTENT,
-                                    ViewGroup.LayoutParams.WRAP_CONTENT
-                                )
-
-                                // Inflate the menu
-                                val menu = LayoutInflater.from(ctx).inflate(
-                                    R.layout.floating_menu,
-                                    this,
-                                    true
-                                )
-
-                                // Apply the MaterialShapeDrawable background to the root view
-                                val shapeDrawable = MaterialShapeDrawable().apply {
-                                    initializeElevationOverlay(ctx)
-                                    setCornerSize(32f)
-                                    fillColor = ColorStateList.valueOf(
-                                        ColorUtils.setAlphaComponent(
-                                            MaterialColors.getColor(
-                                                menu, com.google.android.material.R.attr.colorSurface
-                                            ),
-                                            (0.9f * 255).toInt()
-                                        )
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        AndroidView(
+                            modifier = Modifier
+                                .wrapContentWidth()
+                                .wrapContentHeight(),
+                            factory = { ctx ->
+                                // Create container
+                                FrameLayout(ctx).apply {
+                                    layoutParams = FrameLayout.LayoutParams(
+                                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                                        ViewGroup.LayoutParams.WRAP_CONTENT
                                     )
-                                    elevation = ViewCompat.getElevation(menu)
+
+                                    // Inflate the menu
+                                    val menu = LayoutInflater.from(ctx).inflate(
+                                        R.layout.floating_menu,
+                                        this,
+                                        true
+                                    )
+
+                                    // Apply the MaterialShapeDrawable background to the root view
+                                    val shapeDrawable = MaterialShapeDrawable().apply {
+                                        initializeElevationOverlay(ctx)
+                                        setCornerSize(32f)
+                                        fillColor = ColorStateList.valueOf(
+                                            ColorUtils.setAlphaComponent(
+                                                MaterialColors.getColor(
+                                                    menu,
+                                                    com.google.android.material.R.attr.colorSurface
+                                                ),
+                                                (0.9f * 255).toInt()
+                                            )
+                                        )
+                                        elevation = ViewCompat.getElevation(menu)
+                                    }
+
+                                    // Assign background to the container (or to `menu` if you prefer)
+                                    this.background = shapeDrawable
+
+                                    tintIcon(
+                                        menu,
+                                        R.id.logo,
+                                        com.google.android.material.R.attr.colorOnSurface
+                                    )
                                 }
-
-                                // Assign background to the container (or to `menu` if you prefer)
-                                this.background = shapeDrawable
-
-                                tintIcon(menu, R.id.logo, com.google.android.material.R.attr.colorOnSurface)
                             }
-                        }
-                    )
+                        )
+                    }
                 }
 
                 // --- Bottom area (SWAPS content; no overlay) ---
@@ -229,7 +239,8 @@ fun MainScreen() {
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(32.dp),
-                                shape = RoundedCornerShape(16.dp)
+                                shape = RoundedCornerShape(16.dp),
+                                colors = buttonColors()
                             ) {
                                 Box(
                                     modifier = Modifier.height(72.dp),
@@ -311,8 +322,8 @@ private fun OverlayPermissionCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(32.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .padding(horizontal = 20.dp, vertical = 16.dp)
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            .padding(horizontal = 20.dp, vertical = 38.dp)
     ) {
         // Row 1: Back + Title
         Row(
@@ -340,45 +351,71 @@ private fun OverlayPermissionCard(
         }
 
         // Row 2: "1 of 2"
-        Spacer(Modifier.height(2.dp))
+        Spacer(Modifier.height(48.dp))
         StepIndicator(currentStep = 1, totalSteps = 2)
 
+        val bodyTypographyModifiers: Modifier = Modifier
+            .padding(bottom = 12.dp, start = 64.dp, end = 64.dp)
+            .align(alignment = Alignment.CenterHorizontally)
+
         // Row 3: Section title + body
-        Spacer(Modifier.height(20.dp))
-        Text(
-            text = "Screen Overlay Permission",
-            style = MaterialTheme.typography.titleMedium,
-            fontSize = 18.sp
-        )
-        Spacer(Modifier.height(6.dp))
-        Text(
-            text = "Axio needs permission to appear on top of other apps.",
-            style = MaterialTheme.typography.bodyMedium
-        )
+        Spacer(Modifier.height(64.dp))
+        Box(
+            modifier = Modifier
+                .padding(bottom = 12.dp, start = 32.dp, end = 32.dp)
+                .align(alignment = Alignment.CenterHorizontally)
+        ) {
+            Text(
+                text = "Screen Overlay Permission",
+                style = MaterialTheme.typography.titleMedium,
+                fontSize = 22.sp
+            )
+        }
+        /*Spacer(Modifier.height(6.dp))*/
+        Box(
+            modifier = bodyTypographyModifiers
+        ) {
+            Text(
+                text = "Axio needs permission to appear on top of other apps.",
+                style = MaterialTheme.typography.bodyMedium,
+                fontSize = 16.sp,
+                textAlign = TextAlign.Center
+            )
+        }
 
         // Row 4: Note
-        Spacer(Modifier.height(10.dp))
-        Text(
-            text = "This allows the floating quick actions menu to stay visible while you use your phone.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Spacer(Modifier.height(64.dp))
+        Box(
+            modifier = bodyTypographyModifiers
+        ) {
+            Text(
+                text = "This allows the floating quick actions menu to stay visible while you use your phone.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+        }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(64.dp))
 
         // Row 5: CTA
-        Button(
-            onClick = {
-                val intent = Intent(
-                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    "package:${ctx.packageName}".toUri()
-                )
-                ctx.startActivity(intent)
-            },
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp)
+        Box(
+            modifier = Modifier.align(alignment = Alignment.CenterHorizontally)
         ) {
-            Text("Allow screen overlay permission")
+            Button(
+                onClick = {
+                    val intent = Intent(
+                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        "package:${ctx.packageName}".toUri()
+                    )
+                    ctx.startActivity(intent)
+                },
+                modifier = Modifier.wrapContentWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = buttonColors()
+            ) {
+                Text("Allow screen overlay permission")
+            }
         }
     }
 }
@@ -398,12 +435,12 @@ fun StepIndicator(
             val isActive = stepNumber == currentStep
 
             Surface(
-                shape =         CircleShape,
-                color =         if (isActive) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                contentColor =  if (isActive) MaterialTheme.colorScheme.onPrimary
-                                    else if (MaterialTheme.colorScheme.onPrimary.luminance() > 0.5f) Color.Black else Color.White,
-                modifier =      Modifier.size(32.dp)
+                shape = CircleShape,
+                color = if (isActive) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                contentColor = if (isActive) MaterialTheme.colorScheme.onPrimary
+                else if (MaterialTheme.colorScheme.onPrimary.luminance() > 0.5f) Color.Black else Color.White,
+                modifier = Modifier.size(32.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Text(
@@ -440,7 +477,7 @@ fun ConfigurationLayout(
         modifier = modifier
             .fillMaxWidth()
             .background(
-                MaterialTheme.colorScheme.surfaceVariant,
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                 shape = RoundedCornerShape(32.dp)
             )
             .wrapContentHeight()
@@ -470,7 +507,8 @@ fun ConfigurationLayout(
                 .align(Alignment.CenterHorizontally)
         ) {
             Button(
-                onClick = onEnablePermissionsClick
+                onClick = onEnablePermissionsClick,
+                colors = buttonColors()
             ) {
                 Text("Enable permissions")
             }
@@ -496,6 +534,12 @@ fun ConfigurationLayout(
         Spacer(Modifier.height(16.dp))
     }
 }
+
+@Composable
+private fun buttonColors(): ButtonColors = ButtonDefaults.buttonColors(
+    containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+    contentColor = if (MaterialTheme.colorScheme.onPrimary.luminance() > 0.5f) Color.Black else Color.White
+)
 
 @Composable
 fun TriggerModeSelector(
