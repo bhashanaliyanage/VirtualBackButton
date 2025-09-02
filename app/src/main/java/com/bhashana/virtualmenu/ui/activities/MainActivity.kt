@@ -8,6 +8,8 @@ import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
 import android.view.LayoutInflater
+import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -27,7 +29,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
@@ -85,8 +91,8 @@ class MainActivity : ComponentActivity() {
             VirtualBackTheme {
                 // Use a Surface to set the app background to the theme surface color
                 Surface(color = MaterialTheme.colorScheme.surface) {
-                     MainContent()
-//                    MainScreen()
+                    MainContent()
+                    // MainScreen()
                 }
             }
         }
@@ -98,16 +104,26 @@ class MainActivity : ComponentActivity() {
 
 }
 
+// --- local navigator just for the bottom area ---
+sealed interface BottomPage {
+    data object Cta : BottomPage
+    data object Config : BottomPage
+    data object OverlayPerm : BottomPage // page 1 of 2
+}
+
 @Composable
 fun MainScreen() {
-    // State to switch between menu vs config
-    var showConfig by remember { mutableStateOf(false) }
+    // Replace `showConfig` with a small state machine for the BOTTOM area only
+    var bottomPage by remember { mutableStateOf<BottomPage>(BottomPage.Cta) }
+
+    // TODO: wire this to your TriggerModeSelector selection
+    var selectedButtonTypeLabel by remember { mutableStateOf("Accessibility") }
 
     Box(Modifier.fillMaxSize()) {
         SoftGlowBackground(
             modifier = Modifier.fillMaxSize(),
-            glowColor = Color.White.copy(alpha = 0.075f),  // subtler
-            centerBias = 0f to 0.4f,                  // move highlight
+            glowColor = Color.White.copy(alpha = 0.075f),
+            centerBias = 0f to 0.4f,
             radiusFactor = 0.9f
         )
         Scaffold(
@@ -121,88 +137,207 @@ fun MainScreen() {
                     .padding(innerPadding),
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
-                // --- Top content ---
+                // --- Top content (ALWAYS visible) ---
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 16.dp, end = 16.dp, bottom = 16.dp) // margin-like spacing
+                        .padding(top = 16.dp, end = 16.dp, bottom = 16.dp)
                 ) {
                     Button(
                         onClick = { /* TODO */ },
                         modifier = Modifier
                             .wrapContentWidth()
-                            .align(Alignment.CenterEnd)  // <-- Move align here
+                            .align(Alignment.CenterEnd)
                     ) {
                         Text("Service Status: Unknown")
                     }
                 }
 
-                // --- Middle content container ---
+                // --- Middle content (ALWAYS visible) ---
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f),
-                    contentAlignment = Alignment.Center // Center middle content vertically
+                    contentAlignment = Alignment.Center
                 ) {
                     AndroidView(
-                        modifier = Modifier
-                            .wrapContentWidth()
-                            .wrapContentHeight(),
-                        factory = { context ->
-                            LayoutInflater.from(context)
-                                .inflate(R.layout.floating_menu, null, false)
+                        modifier = Modifier.wrapContentWidth().wrapContentHeight(),
+                        factory = { ctx ->
+                            // Create a real parent container…
+                            FrameLayout(ctx).apply {
+                                // If you want the XML root’s match_parent etc. to matter,
+                                // give this container sensible LayoutParams:
+                                layoutParams = FrameLayout.LayoutParams(
+                                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                                    ViewGroup.LayoutParams.WRAP_CONTENT
+                                )
+
+                                // …and inflate INTO it (attachToRoot = true)
+                                LayoutInflater.from(ctx).inflate(
+                                    R.layout.floating_menu,
+                                    this,      // <-- parent
+                                    true       // <-- attachToRoot so layoutParams are applied
+                                )
+                            }
                         }
                     )
                 }
 
-                if (!showConfig) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(),
-                        contentAlignment = Alignment.BottomCenter
-                    ) {
-                        Button(
-                            onClick = { showConfig = !showConfig },
+                // --- Bottom area (SWAPS content; no overlay) ---
+                when (bottomPage) {
+                    BottomPage.Cta -> {
+                        Box(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentAlignment = Alignment.BottomCenter
+                        ) {
+                            Button(
+                                onClick = { bottomPage = BottomPage.Config },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(32.dp),
+                                shape = RoundedCornerShape(16.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier.height(72.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        "Tap to Configure Button Type",
+                                        style = MaterialTheme.typography.titleMedium
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    BottomPage.Config -> {
+                        Box(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(32.dp),
-                            shape = RoundedCornerShape(16.dp)
+                                .fillMaxWidth(),
+                            contentAlignment = Alignment.BottomCenter
                         ) {
                             Box(
-                                modifier = Modifier.height(72.dp),
+                                modifier = Modifier
+                                    .wrapContentHeight()
+                                    .padding(24.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(
-                                    "Tap to Configure Button Type",
-                                    style = MaterialTheme.typography.titleMedium
+                                ConfigurationLayout(
+                                    onEnablePermissionsClick = {
+                                        bottomPage = BottomPage.OverlayPerm
+                                    }
                                 )
                             }
                         }
                     }
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .wrapContentHeight()
-                            .weight(1f),
-                        contentAlignment = Alignment.BottomCenter
-                    ) {
+
+                    BottomPage.OverlayPerm -> {
+                        // This sits as the bottom section; top+middle remain visible
                         Box(
                             modifier = Modifier
-                                .wrapContentHeight()
+                                .fillMaxWidth()
                                 .padding(24.dp)
-                                /*.background(
-                                    MaterialTheme.colorScheme.surfaceVariant,
-                                    RoundedCornerShape(16.dp)
-                                )*/,
-                            contentAlignment = Alignment.Center
                         ) {
-                            // Text("Configuration Layout Goes Here")
-                            ConfigurationLayout { }
+                            OverlayPermissionCard(
+                                buttonTypeLabel = selectedButtonTypeLabel,
+                                onBack = { bottomPage = BottomPage.Config }
+                            )
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+
+/**
+ * Non-overlay "page 1 of 2" card that lives in the bottom area.
+ * Rows:
+ * 1) Back button + "Configure {button} Button"
+ * 2) "1 of 2"
+ * 3) "Screen Overlay Permission" + body text
+ * 4) Note
+ * 5) Primary CTA
+ */
+@Composable
+private fun OverlayPermissionCard(
+    buttonTypeLabel: String,
+    onBack: () -> Unit
+) {
+    val ctx = LocalContext.current
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(32.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(horizontal = 20.dp, vertical = 16.dp)
+    ) {
+        // Row 1: Back + Title
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back"
+                )
+            }
+            Spacer(Modifier.width(4.dp))
+            Text(
+                text = "Configure $buttonTypeLabel Button",
+                style = MaterialTheme.typography.titleLarge,
+                fontSize = 22.sp
+            )
+        }
+
+        // Row 2: "1 of 2"
+        Spacer(Modifier.height(2.dp))
+        Text(
+            text = "1 of 2",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 16.dp)
+        )
+
+        // Row 3: Section title + body
+        Spacer(Modifier.height(20.dp))
+        Text(
+            text = "Screen Overlay Permission",
+            style = MaterialTheme.typography.titleMedium,
+            fontSize = 18.sp
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = "Axio needs permission to appear on top of other apps.",
+            style = MaterialTheme.typography.bodyMedium
+        )
+
+        // Row 4: Note
+        Spacer(Modifier.height(10.dp))
+        Text(
+            text = "This allows the floating quick actions menu to stay visible while you use your phone.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Spacer(Modifier.height(16.dp))
+
+        // Row 5: CTA
+        Button(
+            onClick = {
+                val intent = Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    "package:${ctx.packageName}".toUri()
+                )
+                ctx.startActivity(intent)
+            },
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Text("Allow screen overlay permission")
         }
     }
 }
