@@ -78,6 +78,9 @@ import androidx.core.graphics.ColorUtils
 import androidx.core.net.toUri
 import androidx.core.view.ViewCompat
 import androidx.core.widget.ImageViewCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.bhashana.virtualmenu.BUTTON_TYPE_PREFS
 import com.bhashana.virtualmenu.KEY_TRIGGER_MODE
 import com.bhashana.virtualmenu.MenuContract
@@ -107,8 +110,10 @@ class MainActivity : ComponentActivity() {
             VirtualBackTheme {
                 // Use a Surface to set the app background to the theme surface color
                 Surface(color = MaterialTheme.colorScheme.surface) {
-                    MainContent()
-                    // MainScreen()
+                    // MainContent()
+                    // val navController = rememberNavController()
+                    // SetupNavHost(nav = navController)
+                    MainScreen()
                 }
             }
         }
@@ -120,11 +125,131 @@ class MainActivity : ComponentActivity() {
 
 }
 
+@Composable
+fun EnableServiceCard(
+    buttonTypeLabel: String,
+    onBack: () -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Bottom
+    ) {
+        val ctx = LocalContext.current
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(32.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                .padding(horizontal = 20.dp, vertical = 38.dp)
+        ) {
+            // Row 1: Back + Title
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(
+                    onClick = onBack,
+                    colors = IconButtonDefaults.iconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), // background
+                        contentColor = if (MaterialTheme.colorScheme.onPrimary.luminance() > 0.5f) Color.Black else Color.White
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back"
+                    )
+                }
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    text = "Configure $buttonTypeLabel Button",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontSize = 22.sp
+                )
+            }
+
+            // Row 2: "2 of 2"
+            Spacer(Modifier.height(48.dp))
+            StepIndicator(currentStep = 2, totalSteps = 2)
+
+            val bodyTypographyModifiers: Modifier = Modifier
+                .padding(bottom = 12.dp, start = 64.dp, end = 64.dp)
+                .align(alignment = Alignment.CenterHorizontally)
+
+            // Row 3: Section title + body
+            Spacer(Modifier.height(64.dp))
+            Box(
+                modifier = Modifier
+                    .padding(bottom = 12.dp, start = 32.dp, end = 32.dp)
+                    .align(alignment = Alignment.CenterHorizontally)
+            ) {
+                Text(
+                    text = "Accessibility Button",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontSize = 22.sp
+                )
+            }
+            Box(
+                modifier = bodyTypographyModifiers
+            ) {
+                Text(
+                    text = "Enable the Accessibility Button for Axio",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontSize = 16.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
+
+            // Row 4: Note
+            Spacer(Modifier.height(64.dp))
+            Box(
+                modifier = bodyTypographyModifiers
+            ) {
+                Text(
+                    text = "The accessibility button will be your shortcut to open Axio’s quick actions menu anytime",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+            }
+
+            Spacer(Modifier.height(64.dp))
+
+            // Row 5: CTA
+            Box(
+                modifier = Modifier.align(alignment = Alignment.CenterHorizontally)
+            ) {
+                Button(
+                    onClick = {
+                        try {
+                            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                            ctx.startActivity(intent)
+                        } catch (_: Exception) {
+                            Toast.makeText(
+                                ctx,
+                                "Cannot open accessibility settings",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    },
+                    modifier = Modifier.wrapContentWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = buttonColors()
+                ) {
+                    Text("Enable Accessibility Button")
+                }
+            }
+        }
+    }
+}
+
 // --- local navigator just for the bottom area ---
 sealed interface BottomPage {
     data object Cta : BottomPage
     data object Config : BottomPage
     data object OverlayPerm : BottomPage // page 1 of 2
+    data object EnableService : BottomPage // page 2 of 2
 }
 
 @Composable
@@ -171,7 +296,7 @@ fun MainScreen() {
                 }
 
                 // --- Middle content (ALWAYS visible) ---
-                if (bottomPage != BottomPage.OverlayPerm) {
+                if ((bottomPage != BottomPage.OverlayPerm) && bottomPage != BottomPage.EnableService) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -285,6 +410,20 @@ fun MainScreen() {
                         ) {
                             OverlayPermissionCard(
                                 buttonTypeLabel = selectedButtonTypeLabel,
+                                onBack = { bottomPage = BottomPage.Config },
+                                onOverlayGranted = { bottomPage = BottomPage.EnableService }
+                            )
+                        }
+                    }
+
+                    BottomPage.EnableService -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(24.dp)
+                        ) {
+                            EnableServiceCard(
+                                buttonTypeLabel = selectedButtonTypeLabel,
                                 onBack = { bottomPage = BottomPage.Config }
                             )
                         }
@@ -314,9 +453,25 @@ private fun tintIcon(view: View, iconId: Int, attr: Int) {
 @Composable
 private fun OverlayPermissionCard(
     buttonTypeLabel: String,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onOverlayGranted: () -> Unit
 ) {
     val ctx = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    // Re-check when coming back to foreground
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                if (Settings.canDrawOverlays(ctx)) {
+                    onOverlayGranted()
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
 
     Column(
         modifier = Modifier
@@ -432,7 +587,7 @@ fun StepIndicator(
     ) {
         repeat(totalSteps) { index ->
             val stepNumber = index + 1
-            val isActive = stepNumber == currentStep
+            val isActive = (stepNumber < currentStep)
 
             Surface(
                 shape = CircleShape,
