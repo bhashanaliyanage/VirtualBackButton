@@ -3,16 +3,11 @@ package com.bhashana.virtualmenu.ui.activities
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
-import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import android.widget.FrameLayout
-import android.widget.ImageView
+import android.view.ContextThemeWrapper
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -74,10 +69,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
-import androidx.core.graphics.ColorUtils
 import androidx.core.net.toUri
-import androidx.core.view.ViewCompat
-import androidx.core.widget.ImageViewCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -88,16 +80,16 @@ import com.bhashana.virtualmenu.R
 import com.bhashana.virtualmenu.TriggerMode
 import com.bhashana.virtualmenu.services.TriggerOverlayService
 import com.bhashana.virtualmenu.ui.theme.VirtualBackTheme
+import com.bhashana.virtualmenu.ui.views.FloatingMenuView
 import com.google.android.material.color.DynamicColors
-import com.google.android.material.color.MaterialColors
-import com.google.android.material.shape.MaterialShapeDrawable
 
 class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        DynamicColors.applyToActivitiesIfAvailable(this.application)
+        // DynamicColors.applyToActivitiesIfAvailable(this.application)
+        DynamicColors.applyToActivityIfAvailable(this)
 
         enableEdgeToEdge()
 
@@ -308,7 +300,14 @@ fun MainScreen() {
                                 .wrapContentWidth()
                                 .wrapContentHeight(),
                             factory = { ctx ->
-                                // Create container
+                                // Keep your Material3/dynamic context if you want:
+                                val themed = ContextThemeWrapper(ctx, R.style.Theme_VirtualBack)
+                                val dynCtx = DynamicColors.wrapContextIfAvailable(themed)
+
+                                FloatingMenuView(dynCtx).apply {
+                                    setOnActionListener { /* preview: no-op or show toasts */ }
+                                }
+                                /*// Create container
                                 FrameLayout(ctx).apply {
                                     layoutParams = FrameLayout.LayoutParams(
                                         ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -335,6 +334,7 @@ fun MainScreen() {
                                                 (0.9f * 255).toInt()
                                             )
                                         )
+                                        Log.d("MainActivity", "Fill Color: $fillColor")
                                         elevation = ViewCompat.getElevation(menu)
                                     }
 
@@ -346,7 +346,72 @@ fun MainScreen() {
                                         R.id.logo,
                                         com.google.android.material.R.attr.colorOnSurface
                                     )
-                                }
+
+                                    // Helper to configure an item include
+                                    fun bindItem(
+                                        rootId: Int,
+                                        iconRes: Int,
+                                        labelText: String,
+                                        onClick: () -> Unit
+                                    ) {
+                                        val itemRoot = menu.findViewById<View>(rootId)
+                                        itemRoot.findViewById<ImageView>(R.id.icon).setImageResource(iconRes)
+                                        itemRoot.findViewById<TextView>(R.id.label).text = labelText
+                                        itemRoot.contentDescription = labelText
+                                        itemRoot.setOnClickListener { onClick() }
+                                    }
+
+                                    bindItem(
+                                        R.id.itemBack,
+                                        R.drawable.ic_back,                // <- your drawable
+                                        "Back"
+                                    ) { }
+
+                                    bindItem(
+                                        R.id.itemHome,
+                                        R.drawable.ic_home,
+                                        "Home"
+                                    ) { }
+
+                                    bindItem(
+                                        R.id.itemRecents,
+                                        R.drawable.ic_notifications,
+                                        "Panel"
+                                    ) { }
+
+                                    bindItem(
+                                        R.id.itemLock,
+                                        R.drawable.ic_lock,
+                                        "Lock"
+                                    ) { }
+
+                                    bindItem(
+                                        R.id.itemSS,
+                                        R.drawable.ic_ss,
+                                        "Capture"
+                                    ) { }
+
+                                    tintIcon(
+                                        menu.findViewById(R.id.itemBack), R.id.icon,
+                                        com.google.android.material.R.attr.colorOnSurfaceVariant
+                                    )
+                                    tintIcon(
+                                        menu.findViewById(R.id.itemHome), R.id.icon,
+                                        com.google.android.material.R.attr.colorOnSurfaceVariant
+                                    )
+                                    tintIcon(
+                                        menu.findViewById(R.id.itemRecents), R.id.icon,
+                                        com.google.android.material.R.attr.colorOnSurfaceVariant
+                                    )
+                                    tintIcon(
+                                        menu.findViewById(R.id.itemLock), R.id.icon,
+                                        com.google.android.material.R.attr.colorOnSurfaceVariant
+                                    )
+                                    tintIcon(
+                                        menu.findViewById(R.id.itemSS), R.id.icon,
+                                        com.google.android.material.R.attr.colorOnSurfaceVariant
+                                    )
+                                }*/
                             }
                         )
                     }
@@ -432,12 +497,6 @@ fun MainScreen() {
             }
         }
     }
-}
-
-private fun tintIcon(view: View, iconId: Int, attr: Int) {
-    val iv = view.findViewById<ImageView>(iconId)
-    val color = MaterialColors.getColor(iv, attr)
-    ImageViewCompat.setImageTintList(iv, ColorStateList.valueOf(color))
 }
 
 

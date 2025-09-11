@@ -6,11 +6,11 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.graphics.Point
 import android.os.Build
+import android.os.Build.VERSION_CODES.P
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -28,22 +28,16 @@ import android.view.ViewConfiguration
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.widget.FrameLayout
-import android.widget.ImageView
-import android.widget.TextView
 import androidx.core.content.edit
-import androidx.core.graphics.ColorUtils
 import androidx.core.graphics.component1
 import androidx.core.graphics.component2
-import androidx.core.view.ViewCompat
-import androidx.core.widget.ImageViewCompat
 import com.bhashana.virtualmenu.BUTTON_TYPE_PREFS
 import com.bhashana.virtualmenu.KEY_TRIGGER_MODE
 import com.bhashana.virtualmenu.MenuContract
 import com.bhashana.virtualmenu.OVERLAY_MENU_PREFS
 import com.bhashana.virtualmenu.R
+import com.bhashana.virtualmenu.ui.views.FloatingMenuView
 import com.google.android.material.color.DynamicColors
-import com.google.android.material.color.MaterialColors
-import com.google.android.material.shape.MaterialShapeDrawable
 import kotlin.math.abs
 
 class FloatingMenuService : AccessibilityService() {
@@ -102,12 +96,6 @@ class FloatingMenuService : AccessibilityService() {
         vibrate()
     }
 
-    private fun tintIcon(view: View, iconId: Int, attr: Int) {
-        val iv = view.findViewById<ImageView>(iconId)
-        val color = MaterialColors.getColor(iv, attr)
-        ImageViewCompat.setImageTintList(iv, ColorStateList.valueOf(color))
-    }
-
     @SuppressLint("ClickableViewAccessibility")
     private fun showFloatingMenu() {
         if (overlayView != null || isShuttingDown) return
@@ -128,7 +116,7 @@ class FloatingMenuService : AccessibilityService() {
             gravity = Gravity.TOP or Gravity.START
             /*x = loadInt("overlay_x", 0)          // ← optional persistence
             y = loadInt("overlay_y", 500)*/
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            if (Build.VERSION.SDK_INT >= P) {
                 layoutInDisplayCutoutMode =
                     WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             }
@@ -147,9 +135,26 @@ class FloatingMenuService : AccessibilityService() {
             isFocusable = true
         }
 
-        val menu = inflater.inflate(R.layout.floating_menu, root, false)
+        val menuView = FloatingMenuView(dynamicCtx).apply {
+            setOnActionListener { action ->
+                when (action) {
+                    FloatingMenuView.Action.BACK -> performGlobalAction(GLOBAL_ACTION_BACK)
+                    FloatingMenuView.Action.HOME -> performGlobalAction(GLOBAL_ACTION_HOME)
+                    FloatingMenuView.Action.PANEL -> performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
+                    FloatingMenuView.Action.LOCK -> if (Build.VERSION.SDK_INT >= P) performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
+                    FloatingMenuView.Action.CAPTURE -> if (Build.VERSION.SDK_INT >= P) performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT)
+                }
+                vibrate()
+                if (action != FloatingMenuView.Action.BACK) {
+                    // your previous behavior for dismiss on certain actions
+                    dismissOverlay(disableService = (triggerMode == "accessibility"))
+                }
+            }
+        }
 
-        val shapeDrawable = MaterialShapeDrawable().apply {
+        // val menu = inflater.inflate(R.layout.floating_menu, root, false)
+
+        /*val shapeDrawable = MaterialShapeDrawable().apply {
             initializeElevationOverlay(menu.context)
             setCornerSize(32f) // or from resources: context.resources.getDimension(R.dimen.corner_radius)
             fillColor = ColorStateList.valueOf(
@@ -160,9 +165,9 @@ class FloatingMenuService : AccessibilityService() {
             )
 
             elevation = ViewCompat.getElevation(menu)
-        }
+        }*/
 
-        menu.background = shapeDrawable
+        // menu.background = shapeDrawable
 
         val suf = orientationSuffix(root.context)
         val (sw, sh) = currentScreenSize(root.context)
@@ -176,15 +181,15 @@ class FloatingMenuService : AccessibilityService() {
             topMargin = loadInt("overlay_y_$suf", (sh - 703) / 2)
             Log.d("FloatingBackService", "Screen Orientation: $suf, Current screen size: $sw x $sh")
         }
-        root.addView(menu, lp)
+        root.addView(menuView, lp)
 
         // Once menu is laid out, adjust so it's truly centered
-        menu.post {
+        menuView.post {
             if (!hasSavedPosition(suf)) {
-                lp.leftMargin = (sw - menu.width) / 2
-                lp.topMargin = (sh - menu.height) / 2
-                Log.d("FloatingBackService", "Current menu size: ${menu.width} x ${menu.height}")
-                root.updateViewLayout(menu, lp)
+                lp.leftMargin = (sw - menuView.width) / 2
+                lp.topMargin = (sh - menuView.height) / 2
+                Log.d("FloatingBackService", "Current menu size: ${menuView.width} x ${menuView.height}")
+                root.updateViewLayout(menuView, lp)
             }
         }
 
@@ -192,11 +197,11 @@ class FloatingMenuService : AccessibilityService() {
         root.setOnTouchListener { _, ev ->
             when (ev.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
-                    val hit = IntArray(2).also { menu.getLocationOnScreen(it) }
+                    val hit = IntArray(2).also { menuView.getLocationOnScreen(it) }
                     val x = ev.rawX.toInt()
                     val y = ev.rawY.toInt()
-                    val inside = x in hit[0]..(hit[0] + menu.width) &&
-                            y in hit[1]..(hit[1] + menu.height)
+                    val inside = x in hit[0]..(hit[0] + menuView.width) &&
+                            y in hit[1]..(hit[1] + menuView.height)
                     if (!inside) {
                         dismissOverlay(disableService = (triggerMode == "accessibility"))
                         true // consume
@@ -208,15 +213,15 @@ class FloatingMenuService : AccessibilityService() {
         }
 
         // Helper to configure an item include
-        fun bindItem(rootId: Int, iconRes: Int, labelText: String, onClick: () -> Unit) {
+        /*fun bindItem(rootId: Int, iconRes: Int, labelText: String, onClick: () -> Unit) {
             val itemRoot = menu.findViewById<View>(rootId)
             itemRoot.findViewById<ImageView>(R.id.icon).setImageResource(iconRes)
             itemRoot.findViewById<TextView>(R.id.label).text = labelText
             itemRoot.contentDescription = labelText
             itemRoot.setOnClickListener { onClick() }
-        }
+        }*/
 
-        bindItem(
+        /*bindItem(
             R.id.itemBack,
             R.drawable.ic_back,                // <- your drawable
             "Back"
@@ -289,17 +294,9 @@ class FloatingMenuService : AccessibilityService() {
             menu.findViewById(R.id.itemSS), R.id.icon,
             com.google.android.material.R.attr.colorOnSurfaceVariant
         )
-        tintIcon(menu, R.id.logo, com.google.android.material.R.attr.colorOnSurface)
+        tintIcon(menu, R.id.logo, com.google.android.material.R.attr.colorOnSurface)*/
 
-        /*// Tint logo
-        val logoImageView = menu.findViewById<ImageView>(R.id.logo)
-        val color = MaterialColors.getColor(
-            logoImageView,
-            com.google.android.material.R.attr.colorOnSurfaceVariant
-        )
-        ImageViewCompat.setImageTintList(logoImageView, ColorStateList.valueOf(color))*/
-
-        menu.enableDragWithinRoot(root, lp)
+        menuView.enableDragWithinRoot(root, lp)
         windowManager.addView(root, params)
         overlayView = root
 
@@ -341,7 +338,10 @@ class FloatingMenuService : AccessibilityService() {
     private fun Context.isLandscape(): Boolean =
         resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-    private fun dismissOverlay(disableService: Boolean = (triggerMode == "accessibility"), deferMs: Long = 120L) {
+    private fun dismissOverlay(
+        disableService: Boolean = (triggerMode == "accessibility"),
+        deferMs: Long = 120L
+    ) {
         overlayView?.let { v ->
             try {
                 windowManager.removeViewImmediate(v)
