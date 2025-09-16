@@ -21,7 +21,6 @@ import android.provider.Settings
 import android.util.Log
 import android.view.ContextThemeWrapper
 import android.view.Gravity
-import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
@@ -65,11 +64,13 @@ class FloatingMenuService : AccessibilityService() {
     override fun onServiceConnected() {
         Log.d("FloatingBackService", "onServiceConnected()")
 
+        /*
+        // TODO: Check when enabling the overlay button
         if (!Settings.canDrawOverlays(this)) {
             Log.e("FloatingBackService", "Overlay permission not granted")
             // Optionally: launch an activity to request it.
             return
-        }
+        }*/
 
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
 
@@ -125,7 +126,6 @@ class FloatingMenuService : AccessibilityService() {
         // Use a Material3 theme for proper attribute resolution
         val baseThemed = ContextThemeWrapper(this, R.style.Theme_VirtualBack)
         val dynamicCtx = DynamicColors.wrapContextIfAvailable(baseThemed)
-        val inflater = LayoutInflater.from(dynamicCtx)
 
         // Root acts as touch-guard
         val root = FrameLayout(dynamicCtx).apply {
@@ -141,8 +141,13 @@ class FloatingMenuService : AccessibilityService() {
                     FloatingMenuView.Action.BACK -> performGlobalAction(GLOBAL_ACTION_BACK)
                     FloatingMenuView.Action.HOME -> performGlobalAction(GLOBAL_ACTION_HOME)
                     FloatingMenuView.Action.PANEL -> performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
-                    FloatingMenuView.Action.LOCK -> if (Build.VERSION.SDK_INT >= P) performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
-                    FloatingMenuView.Action.CAPTURE -> if (Build.VERSION.SDK_INT >= P) performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT)
+                    FloatingMenuView.Action.LOCK -> if (Build.VERSION.SDK_INT >= P) performGlobalAction(
+                        GLOBAL_ACTION_LOCK_SCREEN
+                    )
+
+                    FloatingMenuView.Action.CAPTURE -> if (Build.VERSION.SDK_INT >= P) performGlobalAction(
+                        GLOBAL_ACTION_TAKE_SCREENSHOT
+                    )
                 }
                 vibrate()
                 if (action != FloatingMenuView.Action.BACK) {
@@ -188,7 +193,10 @@ class FloatingMenuService : AccessibilityService() {
             if (!hasSavedPosition(suf)) {
                 lp.leftMargin = (sw - menuView.width) / 2
                 lp.topMargin = (sh - menuView.height) / 2
-                Log.d("FloatingBackService", "Current menu size: ${menuView.width} x ${menuView.height}")
+                Log.d(
+                    "FloatingBackService",
+                    "Current menu size: ${menuView.width} x ${menuView.height}"
+                )
                 root.updateViewLayout(menuView, lp)
             }
         }

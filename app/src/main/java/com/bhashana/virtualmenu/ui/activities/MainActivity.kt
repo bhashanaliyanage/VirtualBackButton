@@ -1,10 +1,15 @@
 package com.bhashana.virtualmenu.ui.activities
 
 import android.content.Context
+import android.content.Context.VIBRATOR_SERVICE
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.res.Configuration
+import android.os.Build
 import android.os.Bundle
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.provider.Settings
 import android.util.Log
 import android.view.ContextThemeWrapper
@@ -305,7 +310,9 @@ fun MainScreen() {
                                 val dynCtx = DynamicColors.wrapContextIfAvailable(themed)
 
                                 FloatingMenuView(dynCtx).apply {
-                                    setOnActionListener { /* preview: no-op or show toasts */ }
+                                    setOnActionListener { action ->
+                                        dynCtx.vibrate()
+                                    }
                                 }
                                 /*// Create container
                                 FrameLayout(ctx).apply {
@@ -499,6 +506,35 @@ fun MainScreen() {
     }
 }
 
+fun Context.vibrate() {
+    val vibrator: Vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        val vm = this.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+        vm.defaultVibrator
+    } else {
+        @Suppress("DEPRECATION")
+        this.getSystemService(VIBRATOR_SERVICE) as Vibrator
+    }
+
+    when {
+        // Predefined effects (API 29+)
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q -> {
+            vibrator.vibrate(
+                VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK)
+            )
+        }
+        // One-shot effect (API 26+)
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.O -> {
+            vibrator.vibrate(
+                VibrationEffect.createOneShot(50L, VibrationEffect.DEFAULT_AMPLITUDE)
+            )
+        }
+        // Legacy (pre-26)
+        else -> {
+            @Suppress("DEPRECATION")
+            vibrator.vibrate(50L)
+        }
+    }
+}
 
 /**
  * Non-overlay "page 1 of 2" card that lives in the bottom area.

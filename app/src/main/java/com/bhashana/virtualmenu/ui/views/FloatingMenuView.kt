@@ -6,6 +6,7 @@ import android.util.AttributeSet
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.ImageView
+import android.widget.TextView
 import androidx.core.graphics.ColorUtils
 import androidx.core.view.ViewCompat
 import androidx.core.widget.ImageViewCompat
@@ -58,15 +59,16 @@ class FloatingMenuView @JvmOverloads constructor(
     }
 
     private fun bindAll() {
-        bind(R.id.itemBack, Action.BACK, R.drawable.ic_back)
-        bind(R.id.itemHome, Action.HOME, R.drawable.ic_home)
-        bind(R.id.itemRecents, Action.PANEL, R.drawable.ic_notifications)
-        bind(R.id.itemLock, Action.LOCK, R.drawable.ic_lock)
-        bind(R.id.itemSS, Action.CAPTURE, R.drawable.ic_ss)
+        bind(R.id.itemBack, Action.BACK, R.drawable.ic_back, "Back")
+        bind(R.id.itemHome, Action.HOME, R.drawable.ic_home, "Home")
+        bind(R.id.itemRecents, Action.PANEL, R.drawable.ic_notifications, "Panel")
+        bind(R.id.itemLock, Action.LOCK, R.drawable.ic_lock, "Lock")
+        bind(R.id.itemSS, Action.CAPTURE, R.drawable.ic_ss, "Capture")
     }
 
-    private fun bind(rootId: Int, action: Action, iconRes: Int) {
+    private fun bind(rootId: Int, action: Action, iconRes: Int, labelText: String) {
         val root = findViewById<View>(rootId)
+        root.findViewById<TextView>(R.id.label).text = labelText
         root.setOnClickListener { onAction?.invoke(action) }
         root.findViewById<ImageView>(R.id.icon).setImageResource(iconRes)
     }
