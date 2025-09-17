@@ -1,9 +1,12 @@
 package com.bhashana.virtualmenu.ui.activities
 
+import android.Manifest
+import android.app.Activity
 import android.content.Context
 import android.content.Context.VIBRATOR_SERVICE
 import android.content.Intent
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
@@ -15,8 +18,10 @@ import android.util.Log
 import android.view.ContextThemeWrapper
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -251,6 +256,82 @@ sealed interface BottomPage {
 
 @Composable
 fun MainScreen() {
+    val context = LocalContext.current
+    val activity = context as? Activity
+    val prefs = remember { context.getSharedPreferences(BUTTON_TYPE_PREFS, Context.MODE_PRIVATE) }
+
+    // Launcher to request POST_NOTIFICATIONS at runtime (API 33+)
+    val notifPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            // Now safe to start your foreground service
+            val start = Intent(context, TriggerOverlayService::class.java)
+                .setAction(MenuContract.ACTION_START_OVERLAY)
+            ContextCompat.startForegroundService(context, start)
+            Log.d("MainContent", "Overlay service START requested (after permission)")
+        } else {
+            Toast.makeText(context, "Notification permission is required", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // 1) Observe preference changes (incl. initial value)
+    val triggerModeState = remember { mutableStateOf(readTriggerMode(prefs)) }
+
+    DisposableEffect(prefs) {
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == KEY_TRIGGER_MODE) {
+                triggerModeState.value = readTriggerMode(prefs)
+            }
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
+
+    // 2) React to preference: start/stop overlay service
+    LaunchedEffect(triggerModeState.value) {
+        when (triggerModeState.value) {
+            TriggerMode.OVERLAY -> {
+                if (Settings.canDrawOverlays(context)) {
+                    // Android 13+ must have POST_NOTIFICATIONS before a foreground notif will show
+                    if (Build.VERSION.SDK_INT >= 33) {
+                        val hasNotifPermission =
+                            ContextCompat.checkSelfPermission(
+                                context,
+                                Manifest.permission.POST_NOTIFICATIONS
+                            ) == PackageManager.PERMISSION_GRANTED
+
+                        if (!hasNotifPermission) {
+                            // Must be launched from a Composable via an ActivityResult launcher
+                            activity?.let {
+                                notifPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            } ?: run {
+                                Toast.makeText(context, "Unable to request permission", Toast.LENGTH_SHORT).show()
+                            }
+                            return@LaunchedEffect
+                        }
+                    }
+
+                    // Permission OK (or <33) → start service now
+                    val start = Intent(context, TriggerOverlayService::class.java)
+                        .setAction(MenuContract.ACTION_START_OVERLAY)
+                    ContextCompat.startForegroundService(context, start)
+                    Log.d("MainContent", "Overlay service START requested")
+                } else {
+                    Toast.makeText(context, "Overlay permission required", Toast.LENGTH_SHORT).show()
+                }
+            }
+
+            TriggerMode.ACCESSIBILITY -> {
+                // Stop the overlay service (unrelated to notif permission)
+                val stop = Intent(context, TriggerOverlayService::class.java)
+                    .setAction(MenuContract.ACTION_STOP_OVERLAY)
+                context.startService(stop)
+                Log.d("MainContent", "Overlay service STOP requested")
+            }
+        }
+    }
+
     // Replace `showConfig` with a small state machine for the BOTTOM area only
     var bottomPage by remember { mutableStateOf<BottomPage>(BottomPage.Cta) }
 
@@ -314,111 +395,6 @@ fun MainScreen() {
                                         dynCtx.vibrate()
                                     }
                                 }
-                                /*// Create container
-                                FrameLayout(ctx).apply {
-                                    layoutParams = FrameLayout.LayoutParams(
-                                        ViewGroup.LayoutParams.WRAP_CONTENT,
-                                        ViewGroup.LayoutParams.WRAP_CONTENT
-                                    )
-
-                                    // Inflate the menu
-                                    val menu = LayoutInflater.from(ctx).inflate(
-                                        R.layout.floating_menu,
-                                        this,
-                                        true
-                                    )
-
-                                    // Apply the MaterialShapeDrawable background to the root view
-                                    val shapeDrawable = MaterialShapeDrawable().apply {
-                                        initializeElevationOverlay(ctx)
-                                        setCornerSize(32f)
-                                        fillColor = ColorStateList.valueOf(
-                                            ColorUtils.setAlphaComponent(
-                                                MaterialColors.getColor(
-                                                    menu,
-                                                    com.google.android.material.R.attr.colorSurface
-                                                ),
-                                                (0.9f * 255).toInt()
-                                            )
-                                        )
-                                        Log.d("MainActivity", "Fill Color: $fillColor")
-                                        elevation = ViewCompat.getElevation(menu)
-                                    }
-
-                                    // Assign background to the container (or to `menu` if you prefer)
-                                    this.background = shapeDrawable
-
-                                    tintIcon(
-                                        menu,
-                                        R.id.logo,
-                                        com.google.android.material.R.attr.colorOnSurface
-                                    )
-
-                                    // Helper to configure an item include
-                                    fun bindItem(
-                                        rootId: Int,
-                                        iconRes: Int,
-                                        labelText: String,
-                                        onClick: () -> Unit
-                                    ) {
-                                        val itemRoot = menu.findViewById<View>(rootId)
-                                        itemRoot.findViewById<ImageView>(R.id.icon).setImageResource(iconRes)
-                                        itemRoot.findViewById<TextView>(R.id.label).text = labelText
-                                        itemRoot.contentDescription = labelText
-                                        itemRoot.setOnClickListener { onClick() }
-                                    }
-
-                                    bindItem(
-                                        R.id.itemBack,
-                                        R.drawable.ic_back,                // <- your drawable
-                                        "Back"
-                                    ) { }
-
-                                    bindItem(
-                                        R.id.itemHome,
-                                        R.drawable.ic_home,
-                                        "Home"
-                                    ) { }
-
-                                    bindItem(
-                                        R.id.itemRecents,
-                                        R.drawable.ic_notifications,
-                                        "Panel"
-                                    ) { }
-
-                                    bindItem(
-                                        R.id.itemLock,
-                                        R.drawable.ic_lock,
-                                        "Lock"
-                                    ) { }
-
-                                    bindItem(
-                                        R.id.itemSS,
-                                        R.drawable.ic_ss,
-                                        "Capture"
-                                    ) { }
-
-                                    tintIcon(
-                                        menu.findViewById(R.id.itemBack), R.id.icon,
-                                        com.google.android.material.R.attr.colorOnSurfaceVariant
-                                    )
-                                    tintIcon(
-                                        menu.findViewById(R.id.itemHome), R.id.icon,
-                                        com.google.android.material.R.attr.colorOnSurfaceVariant
-                                    )
-                                    tintIcon(
-                                        menu.findViewById(R.id.itemRecents), R.id.icon,
-                                        com.google.android.material.R.attr.colorOnSurfaceVariant
-                                    )
-                                    tintIcon(
-                                        menu.findViewById(R.id.itemLock), R.id.icon,
-                                        com.google.android.material.R.attr.colorOnSurfaceVariant
-                                    )
-                                    tintIcon(
-                                        menu.findViewById(R.id.itemSS), R.id.icon,
-                                        com.google.android.material.R.attr.colorOnSurfaceVariant
-                                    )
-                                }*/
                             }
                         )
                     }

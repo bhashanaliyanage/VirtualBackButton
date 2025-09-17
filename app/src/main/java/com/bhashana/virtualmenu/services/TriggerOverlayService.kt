@@ -5,6 +5,7 @@ import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.graphics.Color
@@ -56,7 +57,7 @@ class TriggerOverlayService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     private fun overlayNotification(): Notification {
-        val channelId = "axio_overlay"
+        val channelId = "axio_overlay_v2"           // if you change importance, consider a NEW ID
         val mgr = getSystemService(NotificationManager::class.java)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
@@ -65,21 +66,31 @@ class TriggerOverlayService : Service() {
             val channel = NotificationChannel(
                 channelId,
                 "Axio overlay",
-                NotificationManager.IMPORTANCE_MIN
+                NotificationManager.IMPORTANCE_LOW   // ⬅️ use LOW, not MIN
             ).apply {
-                setShowBadge(false) // overlays don’t need a badge
-                lockscreenVisibility = Notification.VISIBILITY_SECRET
+                setShowBadge(false)
+                lockscreenVisibility = Notification.VISIBILITY_PRIVATE
+                description = "Shows the ongoing overlay bubble status"
             }
             mgr.createNotificationChannel(channel)
         }
 
+        val contentIntent = PendingIntent.getActivity(
+            this, 0,
+            packageManager.getLaunchIntentForPackage(packageName),
+            PendingIntent.FLAG_UPDATE_CURRENT or (PendingIntent.FLAG_IMMUTABLE)
+        )
+
         return NotificationCompat.Builder(this, channelId)
             .setSmallIcon(R.drawable.ic_dialog_info)
             .setContentTitle("Axio floating button is on")
-            .setCategory(Notification.CATEGORY_SERVICE)
-            .setPriority(NotificationCompat.PRIORITY_MIN) // helps below O
+            .setContentText("Tap to open Axio")
+            .setContentIntent(contentIntent)
             .setOngoing(true)
             .setShowWhen(false)
+            .setCategory(Notification.CATEGORY_SERVICE)
+            // Priority only affects pre-O; harmless to keep:
+            .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
     }
 
