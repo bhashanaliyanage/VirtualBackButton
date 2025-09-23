@@ -1,6 +1,6 @@
 package com.bhashana.virtualmenu.services
 
-import android.R
+import com.bhashana.virtualmenu.R
 import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
@@ -42,12 +42,20 @@ class TriggerOverlayService : Service() {
         addBubble()
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        when (intent?.action) {
-            MenuContract.ACTION_STOP_OVERLAY -> stopSelf()
+override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+    when (intent?.action) {
+        MenuContract.ACTION_STOP_OVERLAY -> {
+            stopSelf()
         }
-        return START_STICKY
     }
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        startForeground(1, overlayNotification())
+    }
+
+    // Rest of your service logic
+    return START_STICKY
+}
 
     override fun onDestroy() {
         super.onDestroy()
@@ -66,7 +74,7 @@ class TriggerOverlayService : Service() {
             val channel = NotificationChannel(
                 channelId,
                 "Axio overlay",
-                NotificationManager.IMPORTANCE_LOW   // ⬅️ use LOW, not MIN
+                NotificationManager.IMPORTANCE_HIGH   // ⬅️ use LOW, not MIN
             ).apply {
                 setShowBadge(false)
                 lockscreenVisibility = Notification.VISIBILITY_PRIVATE
@@ -82,15 +90,19 @@ class TriggerOverlayService : Service() {
         )
 
         return NotificationCompat.Builder(this, channelId)
-            .setSmallIcon(R.drawable.ic_dialog_info)
+            .setSmallIcon(R.drawable.ic_launcher_foreground_axio)
             .setContentTitle("Axio floating button is on")
             .setContentText("Tap to open Axio")
             .setContentIntent(contentIntent)
-            .setOngoing(true)
+            .setOngoing(true) // <-- makes it non-dismissible
             .setShowWhen(false)
             .setCategory(Notification.CATEGORY_SERVICE)
-            // Priority only affects pre-O; harmless to keep:
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setPriority(NotificationCompat.PRIORITY_LOW) // affects pre-O only
+            // Don’t use deleteIntent or autoCancel; both can make it dismissible
+            // .setDeleteIntent(null) // (default is null)
+            // .setAutoCancel(false)  // (default is false)
+            // Android 12+: ensures it shows immediately if posted after start
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .build()
     }
 
@@ -111,7 +123,7 @@ class TriggerOverlayService : Service() {
         }
 
         val iv = ImageView(this).apply {
-            setImageResource(com.bhashana.virtualmenu.R.drawable.ic_launcher_foreground_axio) // 48dp circular asset
+            setImageResource(R.drawable.ic_launcher_foreground_axio) // 48dp circular asset
             setOnClickListener {
                 // Ask the accessibility service (if enabled) to show the menu
                 Log.d("TriggerOverlayService", "show menu")

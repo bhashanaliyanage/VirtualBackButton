@@ -1,7 +1,6 @@
 package com.bhashana.virtualmenu.ui.activities
 
 import android.Manifest
-import android.app.Activity
 import android.content.Context
 import android.content.Context.VIBRATOR_SERVICE
 import android.content.Intent
@@ -257,7 +256,7 @@ sealed interface BottomPage {
 @Composable
 fun MainScreen() {
     val context = LocalContext.current
-    val activity = context as? Activity
+    val lifecycleOwner = LocalLifecycleOwner.current
     val prefs = remember { context.getSharedPreferences(BUTTON_TYPE_PREFS, Context.MODE_PRIVATE) }
 
     // Launcher to request POST_NOTIFICATIONS at runtime (API 33+)
@@ -271,7 +270,8 @@ fun MainScreen() {
             ContextCompat.startForegroundService(context, start)
             Log.d("MainContent", "Overlay service START requested (after permission)")
         } else {
-            Toast.makeText(context, "Notification permission is required", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Notification permission is required", Toast.LENGTH_SHORT)
+                .show()
         }
     }
 
@@ -288,6 +288,26 @@ fun MainScreen() {
         onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }
 
+    // gate the launcher until RESUMED
+    DisposableEffect(lifecycleOwner, triggerModeState.value) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME &&
+                triggerModeState.value == TriggerMode.OVERLAY &&
+                Settings.canDrawOverlays(context) &&
+                Build.VERSION.SDK_INT >= 33 &&
+                ContextCompat.checkSelfPermission(
+                    context, Manifest.permission.POST_NOTIFICATIONS
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                // safe to show the system dialog now
+                notifPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+
     // 2) React to preference: start/stop overlay service
     LaunchedEffect(triggerModeState.value) {
         when (triggerModeState.value) {
@@ -302,13 +322,9 @@ fun MainScreen() {
                             ) == PackageManager.PERMISSION_GRANTED
 
                         if (!hasNotifPermission) {
-                            // Must be launched from a Composable via an ActivityResult launcher
-                            activity?.let {
-                                notifPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                            } ?: run {
-                                Toast.makeText(context, "Unable to request permission", Toast.LENGTH_SHORT).show()
-                            }
-                            return@LaunchedEffect
+                            notifPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            // exit the effect for now; the launcher callback will start the service
+                            // return@LaunchedEffect
                         }
                     }
 
@@ -318,7 +334,8 @@ fun MainScreen() {
                     ContextCompat.startForegroundService(context, start)
                     Log.d("MainContent", "Overlay service START requested")
                 } else {
-                    Toast.makeText(context, "Overlay permission required", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Overlay permission required", Toast.LENGTH_SHORT)
+                        .show()
                 }
             }
 

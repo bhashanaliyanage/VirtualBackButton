@@ -8,4 +8,6 @@
     <string name="floating_menu_title">Axio</string>
     <string name="floating_menu_subtitle">Quick Accessibility Actions</string>
     <string name="app_logo">Axio Logo</string>
+    <string name="foreground_service_type_special_use">Special Use</string>
+    <string name="foreground_service_type_special_use_description">This service is used to display an overlay button for quick access to app features, enhancing user experience by providing quick access to the app\'s functionality from anywhere in the system.</string>
 </resources>
