@@ -49,7 +49,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -128,8 +127,8 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun EnableServiceCard(
-    buttonTypeLabel: String,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    triggerMode: TriggerMode
 ) {
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -164,7 +163,7 @@ fun EnableServiceCard(
                 }
                 Spacer(Modifier.width(4.dp))
                 Text(
-                    text = "Configure $buttonTypeLabel Button",
+                    text = if (triggerMode == TriggerMode.ACCESSIBILITY) "Configure Accessibility Button" else "Configure Accessibility Service",
                     style = MaterialTheme.typography.titleLarge,
                     fontSize = 22.sp
                 )
@@ -180,13 +179,14 @@ fun EnableServiceCard(
 
             // Row 3: Section title + body
             Spacer(Modifier.height(64.dp))
+            val buttonTypeText = if (triggerMode == TriggerMode.ACCESSIBILITY) "Accessibility Button" else "Accessibility Service"
             Box(
                 modifier = Modifier
                     .padding(bottom = 12.dp, start = 32.dp, end = 32.dp)
                     .align(alignment = Alignment.CenterHorizontally)
             ) {
                 Text(
-                    text = "Accessibility Button",
+                    text = buttonTypeText,
                     style = MaterialTheme.typography.titleMedium,
                     fontSize = 22.sp
                 )
@@ -195,7 +195,7 @@ fun EnableServiceCard(
                 modifier = bodyTypographyModifiers
             ) {
                 Text(
-                    text = "Enable the Accessibility Button for Axio",
+                    text = "Enable the $buttonTypeText for Axio",
                     style = MaterialTheme.typography.bodyMedium,
                     fontSize = 16.sp,
                     textAlign = TextAlign.Center
@@ -208,7 +208,7 @@ fun EnableServiceCard(
                 modifier = bodyTypographyModifiers
             ) {
                 Text(
-                    text = "The accessibility button will be your shortcut to open Axio’s quick actions menu anytime",
+                    text = "The $buttonTypeText will be your shortcut to open Axio’s quick actions menu anytime",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center
@@ -238,7 +238,7 @@ fun EnableServiceCard(
                     shape = RoundedCornerShape(16.dp),
                     colors = buttonColors()
                 ) {
-                    Text("Enable Accessibility Button")
+                    Text("Enable $buttonTypeText")
                 }
             }
         }
@@ -307,7 +307,6 @@ fun MainScreen() {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-
     // 2) React to preference: start/stop overlay service
     LaunchedEffect(triggerModeState.value) {
         when (triggerModeState.value) {
@@ -353,7 +352,7 @@ fun MainScreen() {
     var bottomPage by remember { mutableStateOf<BottomPage>(BottomPage.Cta) }
 
     // TODO: wire this to your TriggerModeSelector selection
-    var selectedButtonTypeLabel by remember { mutableStateOf("Accessibility") }
+    var selectedButtonTypeLabel by remember { mutableStateOf(if (triggerModeState.value == TriggerMode.ACCESSIBILITY) "Accessibility" else "Overlay") }
 
     Box(Modifier.fillMaxSize()) {
         SoftGlowBackground(
@@ -418,6 +417,8 @@ fun MainScreen() {
                 }
 
                 // --- Bottom area (SWAPS content; no overlay) ---
+                val buttonTypeLabel = if (triggerModeState.value == TriggerMode.ACCESSIBILITY) "Accessibility" else "Overlay"
+
                 when (bottomPage) {
                     BottomPage.Cta -> {
                         Box(
@@ -474,7 +475,7 @@ fun MainScreen() {
                                 .padding(24.dp)
                         ) {
                             OverlayPermissionCard(
-                                buttonTypeLabel = selectedButtonTypeLabel,
+                                triggerMode = triggerModeState.value,
                                 onBack = { bottomPage = BottomPage.Config },
                                 onOverlayGranted = { bottomPage = BottomPage.EnableService }
                             )
@@ -488,9 +489,10 @@ fun MainScreen() {
                                 .padding(24.dp)
                         ) {
                             EnableServiceCard(
-                                buttonTypeLabel = selectedButtonTypeLabel,
+                                triggerMode = triggerModeState.value,
                                 onBack = { bottomPage = BottomPage.Config }
                             )
+                            Log.d("MainActivity", "selectedButtonTypeLabel: $selectedButtonTypeLabel")
                         }
                     }
                 }
@@ -540,12 +542,13 @@ fun Context.vibrate() {
  */
 @Composable
 private fun OverlayPermissionCard(
-    buttonTypeLabel: String,
     onBack: () -> Unit,
-    onOverlayGranted: () -> Unit
+    onOverlayGranted: () -> Unit,
+    triggerMode: TriggerMode
 ) {
     val ctx = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val buttonTypeLabel = if (triggerMode == TriggerMode.ACCESSIBILITY) "Accessibility" else "Overlay"
 
     // Re-check when coming back to foreground
     DisposableEffect(lifecycleOwner) {
@@ -887,178 +890,6 @@ private fun readTriggerMode(prefs: SharedPreferences): TriggerMode =
         "overlay" -> TriggerMode.OVERLAY
         else -> TriggerMode.ACCESSIBILITY
     }
-
-@Composable
-private fun MainContent() {
-    val context = LocalContext.current
-    val prefs =
-        remember { context.getSharedPreferences(BUTTON_TYPE_PREFS, Context.MODE_PRIVATE) }
-
-    // 1) Observe preference changes (incl. initial value)
-    val triggerModeState = remember { mutableStateOf(readTriggerMode(prefs)) }
-
-    DisposableEffect(prefs) {
-        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-            if (key == KEY_TRIGGER_MODE) {
-                triggerModeState.value = readTriggerMode(prefs)
-            }
-        }
-        prefs.registerOnSharedPreferenceChangeListener(listener)
-        onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
-    }
-
-    // 2) React to preference: start/stop overlay service
-    LaunchedEffect(triggerModeState.value) {
-        when (triggerModeState.value) {
-            TriggerMode.OVERLAY -> {
-                if (Settings.canDrawOverlays(context)) {
-                    val start = Intent(context, TriggerOverlayService::class.java)
-                        .setAction(MenuContract.ACTION_START_OVERLAY)
-                    ContextCompat.startForegroundService(context, start)
-                    Log.d("MainContent", "Overlay service START requested")
-                } else {
-                    Toast.makeText(context, "Overlay permission required", Toast.LENGTH_SHORT)
-                        .show()
-                }
-            }
-
-            TriggerMode.ACCESSIBILITY -> {
-                // Tell the service to tear down and stop
-                val stop = Intent(context, TriggerOverlayService::class.java)
-                    .setAction(MenuContract.ACTION_STOP_OVERLAY)
-                context.startService(stop) // safe: service will handle STOP action
-                Log.d("MainContent", "Overlay service STOP requested")
-            }
-        }
-    }
-
-    Box(Modifier.fillMaxSize()) {
-        SoftGlowBackground(
-            modifier = Modifier.fillMaxSize(),
-            glowColor = Color.White.copy(alpha = 0.075f),  // subtler
-            centerBias = 0f to 0.4f,                  // move highlight
-            radiusFactor = 0.9f
-        )
-        Scaffold(
-            modifier = Modifier.fillMaxSize(),
-            containerColor = Color.Transparent,
-            contentColor = MaterialTheme.colorScheme.onSurface
-        ) { innerPadding ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Greeting()
-                    Spacer(Modifier.height(20.dp))
-
-                    TriggerModeSelector(
-                        modifier = Modifier
-                            .width(260.dp) // optional width to align with buttons
-                    )
-
-                    Spacer(Modifier.height(16.dp))
-
-                    val context = LocalContext.current
-
-                    // Primary button picks up dynamic color automatically
-                    Button(
-                        onClick = {
-                            try {
-                                val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                                context.startActivity(intent)
-                            } catch (_: Exception) {
-                                Toast.makeText(
-                                    context,
-                                    "Cannot open accessibility settings",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                        }, Modifier.width(200.dp)
-                    ) {
-                        Text(
-                            "Open Accessibility Settings",
-                            textAlign = TextAlign.Center
-                        )
-                    }
-
-                    Spacer(Modifier.height(16.dp))
-
-                    // Use an outlined style to vary emphasis
-                    OutlinedButton(onClick = {
-                        if (!Settings.canDrawOverlays(context)) {
-                            val intent = Intent(
-                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                "package:${context.packageName}".toUri()
-                            )
-                            context.startActivity(intent)
-                        } else {
-                            Toast.makeText(
-                                context,
-                                "Overlay permission already granted",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                    }, Modifier.width(200.dp)) {
-                        Text(
-                            "Grant Overlay Permission",
-                            textAlign = TextAlign.Center
-                        )
-                    }
-
-                    val overlaySelected = triggerModeState.value == TriggerMode.OVERLAY
-                    Button(
-                        onClick = {
-                            if (!Settings.canDrawOverlays(context)) {
-                                // send user to overlay permission screen
-                                val intent = Intent(
-                                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                    "package:${context.packageName}".toUri()
-                                )
-                                context.startActivity(intent)
-                                return@Button
-                            }
-                            val start = Intent(context, TriggerOverlayService::class.java)
-                                .setAction(MenuContract.ACTION_START_OVERLAY)
-
-                            // Start (or re-start) foreground overlay
-                            ContextCompat.startForegroundService(context, start)
-
-                            Toast.makeText(
-                                context,
-                                "Floating button enabled",
-                                Toast.LENGTH_SHORT
-                            )
-                                .show()
-                        },
-                        enabled = overlaySelected, // disabled if Accessibility mode
-                        modifier = Modifier.width(220.dp)
-                    ) {
-                        Text("Enable Floating Button", textAlign = TextAlign.Center)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun Greeting(modifier: Modifier = Modifier) {
-    Text(
-        text = """
-            |1. Enable Accessibility
-            |2. Enable Accessibility Button
-            |3. Grant Overlay Permission
-            |4. Enjoy! Nothing else to do here.
-        """.trimMargin(),
-        modifier = modifier
-    )
-}
 
 @Preview(showSystemUi = true)
 @Composable
