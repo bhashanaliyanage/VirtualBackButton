@@ -10,17 +10,22 @@ import android.app.Service
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.IBinder
 import android.provider.Settings
 import android.util.Log
+import android.view.ContextThemeWrapper
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewOutlineProvider
 import android.view.WindowManager
 import android.widget.ImageView
+import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationCompat
 import com.bhashana.virtualmenu.MenuContract
+import com.google.android.material.color.MaterialColors
 import kotlin.math.abs
 
 class TriggerOverlayService : Service() {
@@ -42,20 +47,20 @@ class TriggerOverlayService : Service() {
         addBubble()
     }
 
-override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-    when (intent?.action) {
-        MenuContract.ACTION_STOP_OVERLAY -> {
-            stopSelf()
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        when (intent?.action) {
+            MenuContract.ACTION_STOP_OVERLAY -> {
+                stopSelf()
+            }
         }
-    }
 
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        startForeground(1, overlayNotification())
-    }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForeground(1, overlayNotification())
+        }
 
-    // Rest of your service logic
-    return START_STICKY
-}
+        // Rest of your service logic
+        return START_STICKY
+    }
 
     override fun onDestroy() {
         super.onDestroy()
@@ -98,19 +103,20 @@ override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
             .setShowWhen(false)
             .setCategory(Notification.CATEGORY_SERVICE)
             .setPriority(NotificationCompat.PRIORITY_LOW) // affects pre-O only
-            // Don’t use deleteIntent or autoCancel; both can make it dismissible
-            // .setDeleteIntent(null) // (default is null)
-            // .setAutoCancel(false)  // (default is false)
-            // Android 12+: ensures it shows immediately if posted after start
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .build()
     }
 
     @SuppressLint("ClickableViewAccessibility")
     private fun addBubble() {
+        fun Int.dp() = (this * resources.displayMetrics.density).toInt()
+
+        val size = 48.dp()            // a little bigger than before
+        val padding = 8.dp()
+
         val lp = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
+            size,
+            size,
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             else WindowManager.LayoutParams.TYPE_PHONE,
@@ -122,17 +128,43 @@ override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
             x = 24; y = 200
         }
 
-        val iv = ImageView(this).apply {
-            setImageResource(R.drawable.ic_launcher_foreground_axio) // 48dp circular asset
+        val themed = ContextThemeWrapper(this, R.style.Theme_VirtualBack)
+
+        val iv = ImageView(themed).apply {
+            // Keep your icon; it will be centered inside the circular background
+            setImageResource(R.drawable.ic_launcher_foreground_axio)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            // setPadding(padding, padding, padding, padding)
+
+            // Ask MaterialColors to resolve surface color for this view
+            val surfaceColor = MaterialColors.getColor(
+                this,
+                com.google.android.material.R.attr.colorSurface,
+                Color.DKGRAY // fallback
+            )
+
+            val transparentSurface = (surfaceColor and 0x00FFFFFF) or (0x99 shl 24)
+
+            // Circular, themed background
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(transparentSurface)
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                elevation = 6f
+                outlineProvider = ViewOutlineProvider.BACKGROUND
+                clipToOutline = true
+            }
+
             setOnClickListener {
-                // Ask the accessibility service (if enabled) to show the menu
                 Log.d("TriggerOverlayService", "show menu")
                 sendBroadcast(Intent(MenuContract.ACTION_SHOW_MENU))
             }
         }
 
         // (Optional) minimal drag
-        iv.setBackgroundColor(Color.RED)
+        // iv.setBackgroundColor(Color.RED)
         var lastX = 0
         var lastY = 0
         var dX = 0
