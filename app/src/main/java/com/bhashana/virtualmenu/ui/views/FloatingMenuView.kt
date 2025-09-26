@@ -2,6 +2,7 @@ package com.bhashana.virtualmenu.ui.views
 
 import android.content.Context
 import android.content.res.ColorStateList
+import android.os.Build
 import android.util.AttributeSet
 import android.view.View
 import android.widget.FrameLayout
@@ -24,6 +25,9 @@ class FloatingMenuView @JvmOverloads constructor(
 
     init {
         inflate(context, R.layout.floating_menu, this)
+        val root = findViewById<View>(R.id.floatingMenuRoot)
+        root?.background = null
+        background = null
         isClickable = true
         isFocusable = true
         applyMaterialBackground(alpha = 0.9f, corner = 32f)

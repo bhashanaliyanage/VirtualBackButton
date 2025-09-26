@@ -157,23 +157,6 @@ class FloatingMenuService : AccessibilityService() {
             }
         }
 
-        // val menu = inflater.inflate(R.layout.floating_menu, root, false)
-
-        /*val shapeDrawable = MaterialShapeDrawable().apply {
-            initializeElevationOverlay(menu.context)
-            setCornerSize(32f) // or from resources: context.resources.getDimension(R.dimen.corner_radius)
-            fillColor = ColorStateList.valueOf(
-                ColorUtils.setAlphaComponent(
-                    MaterialColors.getColor(menu, com.google.android.material.R.attr.colorSurface),
-                    (0.9f * 255).toInt()
-                )
-            )
-
-            elevation = ViewCompat.getElevation(menu)
-        }*/
-
-        // menu.background = shapeDrawable
-
         val suf = orientationSuffix(root.context)
         val (sw, sh) = currentScreenSize(root.context)
 
@@ -184,7 +167,6 @@ class FloatingMenuService : AccessibilityService() {
         ).apply {
             leftMargin = loadInt("overlay_x_$suf", (sw - 540) / 2)
             topMargin = loadInt("overlay_y_$suf", (sh - 703) / 2)
-            Log.d("FloatingBackService", "Screen Orientation: $suf, Current screen size: $sw x $sh")
         }
         root.addView(menuView, lp)
 
@@ -193,10 +175,6 @@ class FloatingMenuService : AccessibilityService() {
             if (!hasSavedPosition(suf)) {
                 lp.leftMargin = (sw - menuView.width) / 2
                 lp.topMargin = (sh - menuView.height) / 2
-                Log.d(
-                    "FloatingBackService",
-                    "Current menu size: ${menuView.width} x ${menuView.height}"
-                )
                 root.updateViewLayout(menuView, lp)
             }
         }
@@ -219,90 +197,6 @@ class FloatingMenuService : AccessibilityService() {
                 else -> false
             }
         }
-
-        // Helper to configure an item include
-        /*fun bindItem(rootId: Int, iconRes: Int, labelText: String, onClick: () -> Unit) {
-            val itemRoot = menu.findViewById<View>(rootId)
-            itemRoot.findViewById<ImageView>(R.id.icon).setImageResource(iconRes)
-            itemRoot.findViewById<TextView>(R.id.label).text = labelText
-            itemRoot.contentDescription = labelText
-            itemRoot.setOnClickListener { onClick() }
-        }*/
-
-        /*bindItem(
-            R.id.itemBack,
-            R.drawable.ic_back,                // <- your drawable
-            "Back"
-        ) {
-            performGlobalAction(GLOBAL_ACTION_BACK)
-            vibrate()
-        }
-
-        bindItem(
-            R.id.itemHome,
-            R.drawable.ic_home,
-            "Home"
-        ) {
-            performGlobalAction(GLOBAL_ACTION_HOME)
-            vibrate()
-            dismissOverlay(disableService = (triggerMode == "accessibility"))
-        }
-
-        bindItem(
-            R.id.itemRecents,
-            R.drawable.ic_notifications,
-            "Panel"
-        ) {
-            performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
-            vibrate()
-            dismissOverlay(disableService = (triggerMode == "accessibility"))
-        }
-
-        bindItem(
-            R.id.itemLock,
-            R.drawable.ic_lock,
-            "Lock"
-        ) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
-            }
-            vibrate()
-            dismissOverlay(disableService = (triggerMode == "accessibility"))
-        }
-
-        bindItem(
-            R.id.itemSS,
-            R.drawable.ic_ss,
-            "Capture"
-        ) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT)
-            }
-            vibrate()
-            dismissOverlay(disableService = (triggerMode == "accessibility"))
-        }
-
-        tintIcon(
-            menu.findViewById(R.id.itemBack), R.id.icon,
-            com.google.android.material.R.attr.colorOnSurfaceVariant
-        )
-        tintIcon(
-            menu.findViewById(R.id.itemHome), R.id.icon,
-            com.google.android.material.R.attr.colorOnSurfaceVariant
-        )
-        tintIcon(
-            menu.findViewById(R.id.itemRecents), R.id.icon,
-            com.google.android.material.R.attr.colorOnSurfaceVariant
-        )
-        tintIcon(
-            menu.findViewById(R.id.itemLock), R.id.icon,
-            com.google.android.material.R.attr.colorOnSurfaceVariant
-        )
-        tintIcon(
-            menu.findViewById(R.id.itemSS), R.id.icon,
-            com.google.android.material.R.attr.colorOnSurfaceVariant
-        )
-        tintIcon(menu, R.id.logo, com.google.android.material.R.attr.colorOnSurface)*/
 
         menuView.enableDragWithinRoot(root, lp)
         windowManager.addView(root, params)

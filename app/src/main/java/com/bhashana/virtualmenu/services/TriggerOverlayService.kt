@@ -1,16 +1,19 @@
 package com.bhashana.virtualmenu.services
 
-import com.bhashana.virtualmenu.R
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
+import android.net.Uri
 import android.os.Build
 import android.os.IBinder
 import android.provider.Settings
@@ -21,10 +24,12 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewOutlineProvider
 import android.view.WindowManager
+import android.view.accessibility.AccessibilityManager
 import android.widget.ImageView
-import androidx.compose.ui.unit.dp
+import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import com.bhashana.virtualmenu.MenuContract
+import com.bhashana.virtualmenu.R
 import com.google.android.material.color.MaterialColors
 import kotlin.math.abs
 
@@ -69,6 +74,61 @@ class TriggerOverlayService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    // 1) Is our AccessibilityService enabled?
+    fun <T> isAccessibilityServiceEnabled(
+        context: Context,
+        serviceClass: Class<T>
+    ): Boolean {
+        val am = context.getSystemService(ACCESSIBILITY_SERVICE) as AccessibilityManager
+        // Quick, reliable check via the enabled service list:
+        val enabled = am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+            .any { info ->
+                val si = info.resolveInfo.serviceInfo
+                si.packageName == context.packageName && si.name == serviceClass.name
+            }
+        if (enabled) return true
+
+        // Fallback: read the colon-separated list in Secure settings
+        val flat = ComponentName(context, serviceClass).flattenToString()
+        val setting = Settings.Secure.getString(
+            context.contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        ) ?: return false
+        return setting.split(':').any { it.equals(flat, ignoreCase = true) }
+    }
+
+    // 2) Send the user to the right Settings screen to enable it
+    @SuppressLint("InlinedApi") // we’re inlining post-31 constants safely
+    fun <T> openAccessibilitySettingsFor(context: Context, serviceClass: Class<T>) {
+        val comp = ComponentName(context, serviceClass)
+
+        // Try the per-service details page (Android 12+). Use literal action & extra.
+        val tried = runCatching {
+            val i = Intent("android.settings.ACCESSIBILITY_DETAILS_SETTINGS")
+                .putExtra("android.provider.extra.ACCESSIBILITY_COMPONENT_NAME", comp.flattenToString())
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(i)
+        }.isSuccess
+        if (tried) return
+
+        // Android 14+ “Restricted settings” gate (sideloaded apps)
+        if (Build.VERSION.SDK_INT >= 34) {
+            runCatching {
+                val i = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                    .setData(Uri.fromParts("package", context.packageName, null))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(i)
+            }
+        }
+
+        // Generic fallback
+        runCatching {
+            val i = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(i)
+        }
+    }
+
     private fun overlayNotification(): Notification {
         val channelId = "axio_overlay_v2"           // if you change importance, consider a NEW ID
         val mgr = getSystemService(NotificationManager::class.java)
@@ -112,7 +172,6 @@ class TriggerOverlayService : Service() {
         fun Int.dp() = (this * resources.displayMetrics.density).toInt()
 
         val size = 48.dp()            // a little bigger than before
-        val padding = 8.dp()
 
         val lp = WindowManager.LayoutParams(
             size,
@@ -151,11 +210,9 @@ class TriggerOverlayService : Service() {
                 setColor(transparentSurface)
             }
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                elevation = 6f
-                outlineProvider = ViewOutlineProvider.BACKGROUND
-                clipToOutline = true
-            }
+            elevation = 6f
+            outlineProvider = ViewOutlineProvider.BACKGROUND
+            clipToOutline = true
 
             setOnClickListener {
                 Log.d("TriggerOverlayService", "show menu")
@@ -187,10 +244,16 @@ class TriggerOverlayService : Service() {
                     if (abs(e.rawX - dX) < 10 &&
                         abs(e.rawY - dY) < 10
                     ) {
-                        Log.d("TriggerOverlayService", "show menu")
+                        /*Log.d("TriggerOverlayService", "show menu")
                         sendBroadcast(Intent(MenuContract.ACTION_SHOW_MENU).apply {
                             setPackage("com.bhashana.virtualmenu")
-                        })
+                        })*/
+                        if (isAccessibilityServiceEnabled(this, FloatingMenuService::class.java)) {
+                            sendBroadcast(Intent(MenuContract.ACTION_SHOW_MENU).setPackage("com.bhashana.virtualmenu"))
+                        } else {
+                            openAccessibilitySettingsFor(this, FloatingMenuService::class.java)
+                            Toast.makeText(this, "Please enable accessibility service", Toast.LENGTH_SHORT).show()
+                        }
                     }
                     true
                 }

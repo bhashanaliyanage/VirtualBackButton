@@ -179,7 +179,8 @@ fun EnableServiceCard(
 
             // Row 3: Section title + body
             Spacer(Modifier.height(64.dp))
-            val buttonTypeText = if (triggerMode == TriggerMode.ACCESSIBILITY) "Accessibility Button" else "Accessibility Service"
+            val buttonTypeText =
+                if (triggerMode == TriggerMode.ACCESSIBILITY) "Accessibility Button" else "Accessibility Service"
             Box(
                 modifier = Modifier
                     .padding(bottom = 12.dp, start = 32.dp, end = 32.dp)
@@ -417,7 +418,8 @@ fun MainScreen() {
                 }
 
                 // --- Bottom area (SWAPS content; no overlay) ---
-                val buttonTypeLabel = if (triggerModeState.value == TriggerMode.ACCESSIBILITY) "Accessibility" else "Overlay"
+                val buttonTypeLabel =
+                    if (triggerModeState.value == TriggerMode.ACCESSIBILITY) "Accessibility" else "Overlay"
 
                 when (bottomPage) {
                     BottomPage.Cta -> {
@@ -492,7 +494,10 @@ fun MainScreen() {
                                 triggerMode = triggerModeState.value,
                                 onBack = { bottomPage = BottomPage.Config }
                             )
-                            Log.d("MainActivity", "selectedButtonTypeLabel: $selectedButtonTypeLabel")
+                            Log.d(
+                                "MainActivity",
+                                "selectedButtonTypeLabel: $selectedButtonTypeLabel"
+                            )
                         }
                     }
                 }
@@ -548,7 +553,8 @@ private fun OverlayPermissionCard(
 ) {
     val ctx = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val buttonTypeLabel = if (triggerMode == TriggerMode.ACCESSIBILITY) "Accessibility" else "Overlay"
+    val buttonTypeLabel =
+        if (triggerMode == TriggerMode.ACCESSIBILITY) "Accessibility" else "Overlay"
 
     // Re-check when coming back to foreground
     DisposableEffect(lifecycleOwner) {
