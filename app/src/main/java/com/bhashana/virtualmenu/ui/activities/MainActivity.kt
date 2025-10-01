@@ -86,9 +86,11 @@ import com.bhashana.virtualmenu.KEY_TRIGGER_MODE
 import com.bhashana.virtualmenu.MenuContract
 import com.bhashana.virtualmenu.R
 import com.bhashana.virtualmenu.TriggerMode
+import com.bhashana.virtualmenu.services.FloatingMenuService
 import com.bhashana.virtualmenu.services.TriggerOverlayService
 import com.bhashana.virtualmenu.ui.theme.VirtualBackTheme
 import com.bhashana.virtualmenu.ui.views.FloatingMenuView
+import com.bhashana.virtualmenu.util.A11yServiceHelper
 import com.google.android.material.color.DynamicColors
 
 class MainActivity : ComponentActivity() {
@@ -260,6 +262,10 @@ fun MainScreen() {
     val lifecycleOwner = LocalLifecycleOwner.current
     val prefs = remember { context.getSharedPreferences(BUTTON_TYPE_PREFS, Context.MODE_PRIVATE) }
 
+    var isEnabled by remember {
+        mutableStateOf(A11yServiceHelper.isEnabled(context, FloatingMenuService::class.java))
+    }
+
     // Launcher to request POST_NOTIFICATIONS at runtime (API 33+)
     val notifPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -278,6 +284,17 @@ fun MainScreen() {
 
     // 1) Observe preference changes (incl. initial value)
     val triggerModeState = remember { mutableStateOf(readTriggerMode(prefs)) }
+
+    // Re-check when the Activity/Screen resumes (user may have toggled in Settings)
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                isEnabled = A11yServiceHelper.isEnabled(context, FloatingMenuService::class.java)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     DisposableEffect(prefs) {
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
@@ -380,13 +397,19 @@ fun MainScreen() {
                         .padding(top = 16.dp, end = 16.dp, bottom = 16.dp)
                 ) {
                     Button(
-                        onClick = { /* TODO */ },
+                        onClick = {
+                            if (isEnabled) {
+                                Toast.makeText(context, "Accessibility service is enabled", Toast.LENGTH_SHORT).show()
+                            } else {
+                                A11yServiceHelper.openSettings(context, FloatingMenuService::class.java)
+                            }
+                        },
                         modifier = Modifier
                             .wrapContentWidth()
                             .align(Alignment.CenterEnd),
                         colors = buttonColors()
                     ) {
-                        Text("Service Status: Unknown")
+                        Text("Service Status: " + if (isEnabled) "Enabled" else "Disabled")
                     }
                 }
 
