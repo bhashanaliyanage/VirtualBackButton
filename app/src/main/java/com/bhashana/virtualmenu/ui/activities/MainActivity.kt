@@ -399,9 +399,16 @@ fun MainScreen() {
                     Button(
                         onClick = {
                             if (isEnabled) {
-                                Toast.makeText(context, "Accessibility service is enabled", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(
+                                    context,
+                                    "Accessibility service is enabled",
+                                    Toast.LENGTH_SHORT
+                                ).show()
                             } else {
-                                A11yServiceHelper.openSettings(context, FloatingMenuService::class.java)
+                                A11yServiceHelper.openSettings(
+                                    context,
+                                    FloatingMenuService::class.java
+                                )
                             }
                         },
                         modifier = Modifier
@@ -409,7 +416,32 @@ fun MainScreen() {
                             .align(Alignment.CenterEnd),
                         colors = buttonColors()
                     ) {
-                        Text("Service Status: " + if (isEnabled) "Enabled" else "Disabled")
+                        // Text("Service Status: " + if (triggerModeState.value == TriggerMode.ACCESSIBILITY) "Accessibility" else if (isEnabled) "Enabled" else "Disabled")
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            // Dot indicator
+                            val dotColor = when {
+                                triggerModeState.value == TriggerMode.ACCESSIBILITY -> Color(0xFF43A047)
+                                isEnabled -> Color(0xFF43A047)
+                                else -> Color(0xFFFFA500) // Orange
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .size(10.dp) // dot size
+                                    .background(dotColor, shape = CircleShape)
+                            )
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            Text(
+                                "Service Status: " +
+                                        when {
+                                            triggerModeState.value == TriggerMode.ACCESSIBILITY -> "Accessibility"
+                                            isEnabled -> "Enabled"
+                                            else -> "Disabled"
+                                        }
+                            )
+                        }
                     }
                 }
 
@@ -441,8 +473,7 @@ fun MainScreen() {
                 }
 
                 // --- Bottom area (SWAPS content; no overlay) ---
-                val buttonTypeLabel =
-                    if (triggerModeState.value == TriggerMode.ACCESSIBILITY) "Accessibility" else "Overlay"
+                if (triggerModeState.value == TriggerMode.ACCESSIBILITY) "Accessibility" else "Overlay"
 
                 when (bottomPage) {
                     BottomPage.Cta -> {

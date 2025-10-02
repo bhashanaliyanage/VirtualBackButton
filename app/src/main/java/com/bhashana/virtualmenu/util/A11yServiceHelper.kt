@@ -11,25 +11,25 @@ import android.view.accessibility.AccessibilityManager
 
 object A11yServiceHelper {
 
-    fun <T> isEnabled(context: Context, serviceClass: Class<T>): Boolean {
-        val am = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
+fun <T> isEnabled(context: Context, serviceClass: Class<T>): Boolean {
+    val am = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
 
-        // Primary: check enabled service list
-        val enabled = am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
-            .any { info ->
-                val si = info.resolveInfo.serviceInfo
-                si.packageName == context.packageName && si.name == serviceClass.name
-            }
-        if (enabled) return true
+    // Primary: check enabled service list
+    val enabled = am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+        .any { info ->
+            val si = info.resolveInfo.serviceInfo
+            si.packageName == context.packageName && si.name == serviceClass.name
+        }
+    if (enabled) return true
 
-        // Fallback: Secure setting list
-        val flat = ComponentName(context, serviceClass).flattenToString()
-        val setting = Settings.Secure.getString(
-            context.contentResolver,
-            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-        ) ?: return false
-        return setting.split(':').any { it.equals(flat, ignoreCase = true) }
-    }
+    // Fallback: Secure setting list
+    val flat = ComponentName(context, serviceClass).flattenToString()
+    val setting = Settings.Secure.getString(
+        context.contentResolver,
+        Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+    ) ?: return false
+    return setting.split(':').any { it.equals(flat, ignoreCase = true) }
+}
 
     @Suppress("DEPRECATION")
     fun <T> openSettings(context: Context, serviceClass: Class<T>) {
