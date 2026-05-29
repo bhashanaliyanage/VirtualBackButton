@@ -1,6 +1,7 @@
 <resources>
     <string name="app_name">Axio: Quick Accessibility Actions</string>
-    <string name="accessibility_service_description">Axio Menu Service</string>
+    <string name="accessibility_service_description">Axio shows a floating quick-action menu so you can go Back, go Home, open Notifications, lock the screen, or take a screenshot — all without leaving your current app. It does not read or collect any data from your screen.</string>
+    <string name="accessibility_service_summary">Floating quick-action menu for common navigation actions</string>
     <string name="as_menu_label">Open Axio Menu</string>
     <string name="back">Go Back</string>
     <string name="home">Go Home</string>
