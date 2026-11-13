@@ -2,7 +2,7 @@ package com.bhashana.virtualmenu.ui.views
 
 import android.content.Context
 import android.content.res.ColorStateList
-import android.os.Build
+import android.graphics.drawable.GradientDrawable
 import android.util.AttributeSet
 import android.view.View
 import android.widget.FrameLayout
@@ -23,6 +23,9 @@ class FloatingMenuView @JvmOverloads constructor(
 
     private var onAction: ((Action) -> Unit)? = null
 
+    private val menuCornerRadiusPx: Float
+        get() = MENU_CORNER_RADIUS_DP * resources.displayMetrics.density
+
     init {
         inflate(context, R.layout.floating_menu, this)
         val root = findViewById<View>(R.id.floatingMenuRoot)
@@ -30,20 +33,36 @@ class FloatingMenuView @JvmOverloads constructor(
         background = null
         isClickable = true
         isFocusable = true
-        applyMaterialBackground(alpha = 0.9f, corner = 32f)
+        applyMaterialBackground(alpha = FALLBACK_BACKGROUND_ALPHA)
         tintAll()
         bindAll()
+    }
+
+    fun setBackgroundBlurEnabled(enabled: Boolean) {
+        if (enabled) {
+            background = null
+        } else {
+            applyMaterialBackground(alpha = FALLBACK_BACKGROUND_ALPHA)
+        }
+    }
+
+    fun createBlurWindowBackground(): GradientDrawable {
+        val color = MaterialColors.getColor(this, com.google.android.material.R.attr.colorSurface)
+        return GradientDrawable().apply {
+            setColor(ColorUtils.setAlphaComponent(color, (BLURRED_BACKGROUND_ALPHA * 255).toInt()))
+            cornerRadius = menuCornerRadiusPx
+        }
     }
 
     fun setOnActionListener(block: (Action) -> Unit) {
         onAction = block
     }
 
-    private fun applyMaterialBackground(alpha: Float, corner: Float) {
+    private fun applyMaterialBackground(alpha: Float) {
         val c = MaterialColors.getColor(this, com.google.android.material.R.attr.colorSurface)
         val shape = MaterialShapeDrawable().apply {
             initializeElevationOverlay(context)
-            setCornerSize(corner)
+            setCornerSize(menuCornerRadiusPx)
             fillColor = ColorStateList.valueOf(
                 ColorUtils.setAlphaComponent(c, (alpha * 255).toInt())
             )
@@ -81,5 +100,12 @@ class FloatingMenuView @JvmOverloads constructor(
         val iv = view.findViewById<ImageView>(iconId)
         val color = MaterialColors.getColor(iv, attr)
         ImageViewCompat.setImageTintList(iv, ColorStateList.valueOf(color))
+    }
+
+    private companion object {
+        // Shared by the native blur window and its fallback surface; measured in dp.
+        const val MENU_CORNER_RADIUS_DP = 12f
+        const val FALLBACK_BACKGROUND_ALPHA = 0.9f
+        const val BLURRED_BACKGROUND_ALPHA = 0.62f
     }
 }

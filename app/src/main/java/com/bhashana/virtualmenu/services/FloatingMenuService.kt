@@ -21,6 +21,9 @@ import android.os.VibratorManager
 import android.provider.Settings
 import android.util.Log
 import android.view.ContextThemeWrapper
+import android.app.Dialog
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -39,11 +42,16 @@ import com.bhashana.virtualmenu.R
 import com.bhashana.virtualmenu.ui.views.FloatingMenuView
 import com.google.android.material.color.DynamicColors
 import kotlin.math.abs
+import java.util.function.Consumer
 
 class FloatingMenuService : AccessibilityService() {
 
     private lateinit var windowManager: WindowManager
     private var overlayView: View? = null
+    private var menuDialog: Dialog? = null
+    private var menuContentView: FloatingMenuView? = null
+    private var menuWindowParams: WindowManager.LayoutParams? = null
+    private var blurEnabledListener: Consumer<Boolean>? = null
     private var isShuttingDown = false
     private var lastDismissUptime = 0L
     private var triggerMode: String? = "accessibility"
@@ -125,131 +133,117 @@ class FloatingMenuService : AccessibilityService() {
         if (overlayView != null || isShuttingDown) return
 
         val type = WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY
-
-        val flags =
-            (WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
-
-        val params =
-            WindowManager.LayoutParams(
-                    WindowManager.LayoutParams.MATCH_PARENT,
-                    WindowManager.LayoutParams.MATCH_PARENT,
-                    type,
-                    flags,
-                    PixelFormat.TRANSLUCENT,
-                )
-                .apply {
-                    gravity = Gravity.TOP or Gravity.START
-                    /*x = loadInt("overlay_x", 0)          // ← optional persistence
-                    y = loadInt("overlay_y", 500)*/
-                    if (Build.VERSION.SDK_INT >= P) {
-                        layoutInDisplayCutoutMode =
-                            WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-                    }
-                }
-
-        // Use a Material3 theme for proper attribute resolution
+        val flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
         val baseThemed = ContextThemeWrapper(this, R.style.Theme_VirtualBack)
         val dynamicCtx = DynamicColors.wrapContextIfAvailable(baseThemed)
-
-        // Root acts as touch-guard
-        val root =
-            FrameLayout(dynamicCtx).apply {
-                // Optional: scrim color
-                setBackgroundColor(0x33000000) // light dim; or leave fully transparent
-                isClickable = true // ensure it can receive clicks
-                isFocusable = true
-            }
-
-        val menuView =
-            FloatingMenuView(dynamicCtx).apply {
-                setOnActionListener { action ->
-                    when (action) {
-                        FloatingMenuView.Action.BACK -> performGlobalAction(GLOBAL_ACTION_BACK)
-                        FloatingMenuView.Action.HOME -> performGlobalAction(GLOBAL_ACTION_HOME)
-                        FloatingMenuView.Action.PANEL ->
-                            performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
-                        FloatingMenuView.Action.LOCK ->
-                            if (Build.VERSION.SDK_INT >= P)
-                                performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
-
-                        FloatingMenuView.Action.CAPTURE ->
-                            if (Build.VERSION.SDK_INT >= P)
-                                performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT)
-                    }
-                    vibrate()
-                    if (action != FloatingMenuView.Action.BACK) {
-                        // dismiss menu but keep service alive for the accessibility button
-                        dismissOverlay(disableService = false)
-                    }
-                }
-            }
-
-        val suf = orientationSuffix(root.context)
-        val (sw, sh) = currentScreenSize(root.context)
-
-        // Position menu where you want (e.g., using LayoutParams margins)
-        val lp =
-            FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.WRAP_CONTENT,
-                    FrameLayout.LayoutParams.WRAP_CONTENT,
-                )
-                .apply {
-                    leftMargin = loadInt("overlay_x_$suf", (sw - 540) / 2)
-                    topMargin = loadInt("overlay_y_$suf", (sh - 703) / 2)
-                }
-        root.addView(menuView, lp)
-
-        // Once menu is laid out, adjust so it's truly centered
-        menuView.post {
-            if (!hasSavedPosition(suf)) {
-                lp.leftMargin = (sw - menuView.width) / 2
-                lp.topMargin = (sh - menuView.height) / 2
-                root.updateViewLayout(menuView, lp)
+        val root = FrameLayout(dynamicCtx).apply {
+            setBackgroundColor(0x33000000)
+            isClickable = true
+        }
+        val guardParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            type, flags, PixelFormat.TRANSLUCENT,
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            if (Build.VERSION.SDK_INT >= P) {
+                layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             }
         }
 
-        // Close when tapping outside the menu
-        root.setOnTouchListener { _, ev ->
-            when (ev.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    val hit = IntArray(2).also { menuView.getLocationOnScreen(it) }
-                    val x = ev.rawX.toInt()
-                    val y = ev.rawY.toInt()
-                    val inside =
-                        x in hit[0]..(hit[0] + menuView.width) &&
-                            y in hit[1]..(hit[1] + menuView.height)
-                    if (!inside) {
-                        dismissOverlay(disableService = false)
-                        true // consume
-                    } else false
+        val menuView = FloatingMenuView(dynamicCtx).apply {
+            setOnActionListener { action ->
+                when (action) {
+                    FloatingMenuView.Action.BACK -> performGlobalAction(GLOBAL_ACTION_BACK)
+                    FloatingMenuView.Action.HOME -> performGlobalAction(GLOBAL_ACTION_HOME)
+                    FloatingMenuView.Action.PANEL -> performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
+                    FloatingMenuView.Action.LOCK -> if (Build.VERSION.SDK_INT >= P)
+                        performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
+                    FloatingMenuView.Action.CAPTURE -> if (Build.VERSION.SDK_INT >= P)
+                        performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT)
                 }
-
-                else -> false
+                vibrate()
+                if (action != FloatingMenuView.Action.BACK) dismissOverlay(disableService = false)
+            }
+        }
+        val suffix = orientationSuffix(dynamicCtx)
+        val (screenWidth, screenHeight) = currentScreenSize(dynamicCtx)
+        val menuParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            // Background blur is rendered by DecorView's hardware renderer. Replacing
+            // the dialog attributes must preserve acceleration for this service window.
+            type, flags or WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
+            PixelFormat.TRANSLUCENT,
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            x = loadInt("overlay_x_$suffix", (screenWidth - 540) / 2)
+            y = loadInt("overlay_y_$suffix", (screenHeight - 703) / 2)
+            if (Build.VERSION.SDK_INT >= P) {
+                layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             }
         }
 
-        menuView.enableDragWithinRoot(root, lp)
-        windowManager.addView(root, params)
+        root.setOnTouchListener { _, event ->
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                dismissOverlay(disableService = false)
+                true
+            } else false
+        }
+
+        windowManager.addView(root, guardParams)
         overlayView = root
+        val dialog = Dialog(dynamicCtx, R.style.Theme_VirtualBack_FloatingMenu)
+        dialog.setContentView(menuView)
+        dialog.setCanceledOnTouchOutside(false)
+        val menuWindow = dialog.window ?: error("Menu dialog has no window")
+        menuWindow.setType(type)
+        menuWindow.setGravity(Gravity.TOP or Gravity.START)
+        menuWindow.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        menuWindow.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+        menuWindow.setFlags(flags, flags)
+        menuWindow.attributes = menuParams
+        menuDialog = dialog
+        menuContentView = menuView
+        menuWindowParams = menuParams
+        applyBlurState(isCrossWindowBlurEnabled())
+        installBlurAvailabilityListener()
+        try {
+            dialog.show()
+            menuWindow.attributes = menuParams
+            menuView.enableDragWithinWindow(dialog, menuParams)
+        } catch (error: RuntimeException) {
+            removeBlurAvailabilityListener()
+            dialog.dismiss()
+            windowManager.removeViewImmediate(root)
+            overlayView = null
+            menuDialog = null
+            menuContentView = null
+            menuWindowParams = null
+            throw error
+        }
 
-        // Optional: save final position when you remove the view
-        overlayView?.addOnAttachStateChangeListener(
-            object : View.OnAttachStateChangeListener {
-                override fun onViewAttachedToWindow(v: View) = Unit
-
-                override fun onViewDetachedFromWindow(v: View) {
-                    val suf = orientationSuffix(v.context)
-                    saveInt("overlay_x_$suf", lp.leftMargin)
-                    saveInt("overlay_y_$suf", lp.topMargin)
-                    Log.d(
-                        "FloatingBackService",
-                        "Screen orientation: $suf, position: (${lp.leftMargin}, ${lp.topMargin})",
-                    )
-                }
+        menuView.post {
+            if (!hasSavedPosition(suffix) && menuDialog === dialog) {
+                val (width, height) = currentScreenSize(menuView.context)
+                menuParams.x = (width - menuView.width) / 2
+                menuParams.y = (height - menuView.height) / 2
+                dialog.window?.attributes = menuParams
             }
-        )
+        }
+        dialog.window?.decorView?.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(v: View) = Unit
+            override fun onViewDetachedFromWindow(v: View) {
+                val currentSuffix = orientationSuffix(v.context)
+                saveInt("overlay_x_$currentSuffix", menuParams.x)
+                saveInt("overlay_y_$currentSuffix", menuParams.y)
+                Log.d("FloatingBackService", "Screen orientation: $currentSuffix, position: (${menuParams.x}, ${menuParams.y})")
+            }
+        })
     }
 
     private fun Context.hasSavedPosition(suf: String): Boolean {
@@ -277,6 +271,15 @@ class FloatingMenuService : AccessibilityService() {
         disableService: Boolean = false,
         deferMs: Long = 120L,
     ) {
+        removeBlurAvailabilityListener()
+        menuDialog?.let { dialog ->
+            try {
+                dialog.dismiss()
+            } catch (_: Exception) {}
+        }
+        menuDialog = null
+        menuContentView = null
+        menuWindowParams = null
         overlayView?.let { v ->
             try {
                 windowManager.removeViewImmediate(v)
@@ -298,8 +301,46 @@ class FloatingMenuService : AccessibilityService() {
         }
     }
 
+    private fun isCrossWindowBlurEnabled(): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && windowManager.isCrossWindowBlurEnabled
+
+    private fun installBlurAvailabilityListener() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+        val listener = Consumer<Boolean> { enabled ->
+            if (menuDialog == null) return@Consumer
+            val params = menuWindowParams ?: return@Consumer
+            applyBlurState(enabled)
+            runCatching { menuDialog?.window?.attributes = params }
+        }
+        blurEnabledListener = listener
+        windowManager.addCrossWindowBlurEnabledListener(listener)
+    }
+
+    private fun applyBlurState(enabled: Boolean) {
+        val dialog = menuDialog ?: return
+        val view = menuContentView ?: return
+        view.setBackgroundBlurEnabled(enabled)
+        dialog.window?.let { window ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                window.setBackgroundBlurRadius(if (enabled) MENU_BACKGROUND_BLUR_RADIUS else 0)
+            }
+            window.setBackgroundDrawable(
+                if (enabled) view.createBlurWindowBackground() else ColorDrawable(Color.TRANSPARENT)
+            )
+        }
+    }
+
+    private fun removeBlurAvailabilityListener() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            blurEnabledListener?.let { listener ->
+                runCatching { windowManager.removeCrossWindowBlurEnabledListener(listener) }
+            }
+        }
+        blurEnabledListener = null
+    }
+
     @SuppressLint("ClickableViewAccessibility")
-    private fun View.enableDragWithinRoot(root: FrameLayout, lp: FrameLayout.LayoutParams) {
+    private fun View.enableDragWithinWindow(dialog: Dialog, lp: WindowManager.LayoutParams) {
         var downX = 0f
         var downY = 0f
         var startLeft = 0
@@ -328,8 +369,8 @@ class FloatingMenuService : AccessibilityService() {
                 MotionEvent.ACTION_DOWN -> {
                     downX = e.rawX
                     downY = e.rawY
-                    startLeft = lp.leftMargin
-                    startTop = lp.topMargin
+                    startLeft = lp.x
+                    startTop = lp.y
                     true
                 }
 
@@ -341,10 +382,10 @@ class FloatingMenuService : AccessibilityService() {
                     val vw = width.takeIf { it > 0 } ?: 1
                     val vh = height.takeIf { it > 0 } ?: 1
 
-                    lp.leftMargin = clamp(startLeft + dx, 0, sw - vw)
-                    lp.topMargin = clamp(startTop + dy, 0, sh - vh)
+                    lp.x = clamp(startLeft + dx, 0, (sw - vw).coerceAtLeast(0))
+                    lp.y = clamp(startTop + dy, 0, (sh - vh).coerceAtLeast(0))
 
-                    root.updateViewLayout(this, lp) // <- update child in the root
+                    dialog.window?.attributes = lp
                     true
                 }
 
@@ -370,14 +411,7 @@ class FloatingMenuService : AccessibilityService() {
         getSharedPreferences(OVERLAY_MENU_PREFS, MODE_PRIVATE).getInt(key, def)
 
     private fun removeFloatingMenu() {
-        val view = overlayView ?: return
-        try {
-            windowManager.removeView(view)
-        } catch (_: Exception) {
-            // ignore
-        } finally {
-            overlayView = null
-        }
+        dismissOverlay(disableService = false)
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
@@ -425,5 +459,9 @@ class FloatingMenuService : AccessibilityService() {
                 @Suppress("DEPRECATION") vibrator.vibrate(50L)
             }
         }
+    }
+
+    private companion object {
+        const val MENU_BACKGROUND_BLUR_RADIUS = 48
     }
 }
