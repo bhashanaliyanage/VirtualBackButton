@@ -4,12 +4,24 @@ import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
-import android.os.Build
 import android.provider.Settings
 import android.view.accessibility.AccessibilityManager
+import com.bhashana.virtualmenu.BUTTON_TYPE_PREFS
+import com.bhashana.virtualmenu.KEY_TRIGGER_MODE
+import com.bhashana.virtualmenu.services.FloatingMenuService
+import com.bhashana.virtualmenu.services.FloatingOverlayAccessibilityService
 
 object A11yServiceHelper {
+
+    fun isSelectedServiceEnabled(context: Context): Boolean {
+        val mode = context.getSharedPreferences(BUTTON_TYPE_PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_TRIGGER_MODE, "accessibility")
+        return if (mode == "overlay") {
+            isEnabled(context, FloatingOverlayAccessibilityService::class.java)
+        } else {
+            isEnabled(context, FloatingMenuService::class.java)
+        }
+    }
 
     fun <T> isEnabled(context: Context, serviceClass: Class<T>): Boolean {
         val am = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
@@ -32,37 +44,10 @@ object A11yServiceHelper {
         return setting.split(':').any { it.equals(flat, ignoreCase = true) }
     }
 
-    @Suppress("DEPRECATION")
-    fun <T> openSettings(context: Context, serviceClass: Class<T>) {
-        val comp = ComponentName(context, serviceClass)
-
-        // Try Android 12+ details page using literal strings (works without new constants)
-        val tried = runCatching {
-            val i = Intent("android.settings.ACCESSIBILITY_DETAILS_SETTINGS")
-                .putExtra(
-                    "android.provider.extra.ACCESSIBILITY_COMPONENT_NAME",
-                    comp.flattenToString()
-                )
+    fun openSettings(context: Context) {
+        context.startActivity(
+            Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(i)
-        }.isSuccess
-        if (tried) return
-
-        // Android 14+ may require allowing "Restricted settings" first for sideloaded apps
-        if (Build.VERSION.SDK_INT >= 34) {
-            runCatching {
-                val i = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-                    .setData(Uri.fromParts("package", context.packageName, null))
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(i)
-            }
-        }
-
-        // Generic fallback
-        runCatching {
-            val i = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(i)
-        }
+        )
     }
 }

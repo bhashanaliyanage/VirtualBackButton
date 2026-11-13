@@ -44,7 +44,9 @@ import com.google.android.material.color.DynamicColors
 import kotlin.math.abs
 import java.util.function.Consumer
 
-class FloatingMenuService : AccessibilityService() {
+open class FloatingMenuService : AccessibilityService() {
+
+    protected open val usesAccessibilityButton: Boolean = true
 
     private lateinit var windowManager: WindowManager
     private var overlayView: View? = null
@@ -54,13 +56,18 @@ class FloatingMenuService : AccessibilityService() {
     private var blurEnabledListener: Consumer<Boolean>? = null
     private var isShuttingDown = false
     private var lastDismissUptime = 0L
-    private var triggerMode: String? = "accessibility"
+
+    private fun isSelectedTrigger(): Boolean {
+        val mode = getSharedPreferences(BUTTON_TYPE_PREFS, MODE_PRIVATE)
+            .getString(KEY_TRIGGER_MODE, "accessibility")
+        return usesAccessibilityButton == (mode != "overlay")
+    }
 
     private val triggerReceiver =
         object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
                 Log.d("FloatingBackService", "onReceive() ${intent.action}")
-                if (intent.action == MenuContract.ACTION_SHOW_MENU) {
+                if (intent.action == MenuContract.ACTION_SHOW_MENU && isSelectedTrigger()) {
                     if (Settings.canDrawOverlays(this@FloatingMenuService)) {
                         showFloatingMenu()
                         vibrate()
@@ -85,15 +92,13 @@ class FloatingMenuService : AccessibilityService() {
             return
         }*/
 
-        val prefs = getSharedPreferences(BUTTON_TYPE_PREFS, MODE_PRIVATE)
-        triggerMode = prefs.getString(KEY_TRIGGER_MODE, "accessibility")
-
-        if (triggerMode == "accessibility") {
+        if (usesAccessibilityButton) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 val buttonController = accessibilityButtonController
                 buttonController.registerAccessibilityButtonCallback(
                     object : AccessibilityButtonController.AccessibilityButtonCallback() {
                         override fun onClicked(controller: AccessibilityButtonController) {
+                            if (!isSelectedTrigger()) return
                             // Toggle or show the menu instantly
                             if (overlayView == null) {
                                 showFloatingMenu()

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeAllMask|typeWindowStateChanged|typeWindowContentChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:notificationTimeout="100"
+    android:canRetrieveWindowContent="true"
+    android:canPerformGestures="true"
+    android:accessibilityFlags="flagDefault"
+    android:summary="@string/overlay_accessibility_service_summary"
+    android:description="@string/accessibility_service_description" />

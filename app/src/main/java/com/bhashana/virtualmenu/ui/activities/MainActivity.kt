@@ -90,7 +90,6 @@ import com.bhashana.virtualmenu.MenuContract
 import com.bhashana.virtualmenu.OVERLAY_MENU_PREFS
 import com.bhashana.virtualmenu.R
 import com.bhashana.virtualmenu.TriggerMode
-import com.bhashana.virtualmenu.services.FloatingMenuService
 import com.bhashana.virtualmenu.services.TriggerOverlayService
 import com.bhashana.virtualmenu.ui.theme.VirtualBackTheme
 import com.bhashana.virtualmenu.ui.views.FloatingMenuView
@@ -170,7 +169,7 @@ fun EnableServiceCard(
                 }
                 Spacer(Modifier.width(4.dp))
                 Text(
-                    text = if (triggerMode == TriggerMode.ACCESSIBILITY) "Configure Accessibility Button" else "Configure Accessibility Service",
+                    text = if (triggerMode == TriggerMode.ACCESSIBILITY) "Configure Accessibility Button" else "Enable Accessibility Service",
                     style = MaterialTheme.typography.titleLarge,
                     fontSize = 22.sp
                 )
@@ -186,8 +185,12 @@ fun EnableServiceCard(
 
             // Row 3: Section title + body
             Spacer(Modifier.height(64.dp))
-            val buttonTypeText =
-                if (triggerMode == TriggerMode.ACCESSIBILITY) "Accessibility Button" else "Accessibility Service"
+            val isAccessibilityButtonMode = triggerMode == TriggerMode.ACCESSIBILITY
+            val buttonTypeText = if (isAccessibilityButtonMode) {
+                "Accessibility Button"
+            } else {
+                "Floating Overlay"
+            }
             Box(
                 modifier = Modifier
                     .padding(bottom = 12.dp, start = 32.dp, end = 32.dp)
@@ -203,7 +206,11 @@ fun EnableServiceCard(
                 modifier = bodyTypographyModifiers
             ) {
                 Text(
-                    text = "Enable the $buttonTypeText for Axio",
+                    text = if (isAccessibilityButtonMode) {
+                        "Select “Open Axio Menu” in Accessibility settings and turn on its Accessibility shortcut."
+                    } else {
+                        "Select “Axio” in Accessibility settings and turn on “Use Axio” to enable the Floating overlay."
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     fontSize = 16.sp,
                     textAlign = TextAlign.Center
@@ -216,7 +223,11 @@ fun EnableServiceCard(
                 modifier = bodyTypographyModifiers
             ) {
                 Text(
-                    text = "The $buttonTypeText will be your shortcut to open Axio’s quick actions menu anytime",
+                    text = if (isAccessibilityButtonMode) {
+                        "The Accessibility button will open Axio’s quick actions menu anytime."
+                    } else {
+                        "The floating button opens Axio’s quick actions menu once the accessibility service is enabled."
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center
@@ -232,8 +243,7 @@ fun EnableServiceCard(
                 Button(
                     onClick = {
                         try {
-                            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                            ctx.startActivity(intent)
+                            A11yServiceHelper.openSettings(ctx)
                         } catch (_: Exception) {
                             Toast.makeText(
                                 ctx,
@@ -246,7 +256,13 @@ fun EnableServiceCard(
                     shape = RoundedCornerShape(16.dp),
                     colors = buttonColors()
                 ) {
-                    Text("Enable $buttonTypeText")
+                    Text(
+                        if (isAccessibilityButtonMode) {
+                            "Configure Accessibility Button"
+                        } else {
+                            "Open Axio Accessibility Settings"
+                        }
+                    )
                 }
             }
         }
@@ -268,7 +284,7 @@ fun MainScreen() {
     val prefs = remember { context.getSharedPreferences(BUTTON_TYPE_PREFS, Context.MODE_PRIVATE) }
 
     var isEnabled by remember {
-        mutableStateOf(A11yServiceHelper.isEnabled(context, FloatingMenuService::class.java))
+        mutableStateOf(A11yServiceHelper.isSelectedServiceEnabled(context))
     }
 
     // Launcher to request POST_NOTIFICATIONS at runtime (API 33+)
@@ -294,7 +310,7 @@ fun MainScreen() {
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                isEnabled = A11yServiceHelper.isEnabled(context, FloatingMenuService::class.java)
+                isEnabled = A11yServiceHelper.isSelectedServiceEnabled(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -305,6 +321,7 @@ fun MainScreen() {
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
             if (key == KEY_TRIGGER_MODE) {
                 triggerModeState.value = readTriggerMode(prefs)
+                isEnabled = A11yServiceHelper.isSelectedServiceEnabled(context)
             }
         }
         prefs.registerOnSharedPreferenceChangeListener(listener)
@@ -413,10 +430,7 @@ fun MainScreen() {
                                     Toast.LENGTH_SHORT
                                 ).show()
                             } else {
-                                A11yServiceHelper.openSettings(
-                                    context,
-                                    FloatingMenuService::class.java
-                                )
+                                A11yServiceHelper.openSettings(context)
                             }
                         },
                         modifier = Modifier
