@@ -51,6 +51,8 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -59,6 +61,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -84,6 +87,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.bhashana.virtualmenu.BUTTON_TYPE_PREFS
 import com.bhashana.virtualmenu.KEY_TRIGGER_MODE
 import com.bhashana.virtualmenu.MenuContract
+import com.bhashana.virtualmenu.OVERLAY_MENU_PREFS
 import com.bhashana.virtualmenu.R
 import com.bhashana.virtualmenu.TriggerMode
 import com.bhashana.virtualmenu.services.FloatingMenuService
@@ -92,6 +96,7 @@ import com.bhashana.virtualmenu.ui.theme.VirtualBackTheme
 import com.bhashana.virtualmenu.ui.views.FloatingMenuView
 import com.bhashana.virtualmenu.util.A11yServiceHelper
 import com.google.android.material.color.DynamicColors
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -368,6 +373,8 @@ fun MainScreen() {
 
     // Replace `showConfig` with a small state machine for the BOTTOM area only
     var bottomPage by remember { mutableStateOf<BottomPage>(BottomPage.Cta) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
 
     // TODO: wire this to your TriggerModeSelector selection
     var selectedButtonTypeLabel by remember { mutableStateOf(if (triggerModeState.value == TriggerMode.ACCESSIBILITY) "Accessibility" else "Overlay") }
@@ -382,7 +389,8 @@ fun MainScreen() {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             containerColor = Color.Transparent,
-            contentColor = MaterialTheme.colorScheme.onSurface
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         ) { innerPadding ->
             Column(
                 modifier = Modifier
@@ -477,15 +485,47 @@ fun MainScreen() {
 
                 when (bottomPage) {
                     BottomPage.Cta -> {
-                        Box(
-                            modifier = Modifier.fillMaxWidth(),
-                            contentAlignment = Alignment.BottomCenter
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 32.dp, vertical = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
+                            Button(
+                                onClick = {
+                                    context.getSharedPreferences(
+                                        OVERLAY_MENU_PREFS,
+                                        Context.MODE_PRIVATE,
+                                    ).edit {
+                                        remove("overlay_x_port")
+                                        remove("overlay_y_port")
+                                        remove("overlay_x_land")
+                                        remove("overlay_y_land")
+                                    }
+                                    coroutineScope.launch {
+                                        snackbarHostState.showSnackbar("Menu position reset")
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = buttonColors(),
+                            ) {
+                                Box(
+                                    modifier = Modifier.height(72.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        "Reset menu position",
+                                        style = MaterialTheme.typography.titleMedium,
+                                    )
+                                }
+                            }
+
                             Button(
                                 onClick = { bottomPage = BottomPage.Config },
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(32.dp),
+                                    .fillMaxWidth(),
                                 shape = RoundedCornerShape(16.dp),
                                 colors = buttonColors()
                             ) {
