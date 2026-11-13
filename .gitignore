@@ -16,3 +16,6 @@ local.properties
 .vscode/settings.json
 /.gradle-home
 /.kotlin
+/app-release-aligned.apk
+/Axio-release.apk
+/Axio-release.apk.idsig
